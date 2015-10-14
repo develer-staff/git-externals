@@ -45,12 +45,12 @@ def process_externals(targets, mapf):
     print "Found {0} unique externals".format(len(externals))
 
     for ext in sorted(externals):
-        if ext:
-            print ext
+        print ext
 
 
 def unique_externals(targets, mapf=lambda x: x):
-    return set([mapf(e) for e in parsed_externals(targets)])
+    tmp = [mapf(e) for e in parsed_externals(targets)]
+    return set([i for i in tmp if i is not None])
 
 
 def parsed_externals(targets):
