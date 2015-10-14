@@ -13,44 +13,56 @@ SVNROOT = "file:///var/lib/svn"
 
 
 def main():
+    # Essentials
     doc = etree.parse(sys.argv[1])
     targets = doc.findall("target")
-    ranked = ranked_externals(targets)
+    ranks = ranked_externals(targets)
+
+    # Extract
+    to_dir = sorted_by_rank(unique_externals(targets, onlydir), ranks)
+    to_file = sorted_by_rank(unique_externals(targets, onlyfile), ranks)
+    to_rev = unique_externals(targets, onlylocked)
+
+    # Present
+    def print_ranked(externals):
+        print "# of externals", len(externals)
+
+        for rank, external in reversed(externals):
+            print str(rank).ljust(5), external["location"]
+
+            for ref in ranks[external["location"]]:
+                print "  " + ref
 
     header("Externals to a directory:")
-    process_externals(targets, only_dir_locations)
+    print_ranked(to_dir)
 
     header("Externals to a file:")
-    process_externals(targets, only_file_locations)
+    print_ranked(to_file)
 
     header("Externals locked to a certain revision:")
-    process_externals(targets, only_locked)
+    print_ranked(to_rev)
 
 
-def ranked_externals(targets, filterf=None):
+def ranked_externals(targets):
     ret = collections.defaultdict(list)
 
-    for ext in parsed_externals(targets):
-        if filterf and not filterf(ext):
-            continue
-
-        ret[ext["location"]].append(ext["target"])
+    for external in parsed_externals(targets):
+        ret[external["location"]].append(external["target"])
 
     return ret
 
 
-def process_externals(targets, mapf):
-    externals = unique_externals(targets, mapf)
+def sorted_by_rank(externals, ranks):
+    ret = []
 
-    print "Found {0} unique externals".format(len(externals))
+    for external in externals:
+        ret.append((len(ranks[external["location"]]), external))
 
-    for ext in sorted(externals):
-        print ext
+    return sorted(ret)
 
 
-def unique_externals(targets, mapf=lambda x: x):
-    tmp = [mapf(e) for e in parsed_externals(targets)]
-    return set([i for i in tmp if i is not None])
+def unique_externals(targets, filterf=lambda x: True):
+    return {v["location"]: v for v in parsed_externals(targets) if filterf(v)}.values()
 
 
 def parsed_externals(targets):
@@ -110,28 +122,24 @@ def header(msg):
 #
 
 
-def only_file_locations(external):
-    _, ext = os.path.splitext(external["location"])
-    if not ext:
-        return None
-
-    return external["location"]
+def notags(external):
+    return "/tags/" not in external["target"]
 
 
-def only_dir_locations(external):
-    _, ext = os.path.splitext(external["location"])
-    if ext:
-        return None
-
-    return external["location"]
+def onlyfile(external):
+    return os.path.splitext(external["location"])[1] != ""
 
 
-def only_locked(external):
-    if not external["rev"]:
-        return None
+def onlydir(external):
+    return os.path.splitext(external["location"])[1] == ""
 
-    return "r{0} of {1}".format(external["rev"], external["location"], external["target"])
 
+def onlylocked(external):
+    return external["rev"] is not None
+
+#
+# Entry point
+#
 
 if __name__ == "__main__":
     main()
