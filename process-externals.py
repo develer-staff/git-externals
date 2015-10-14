@@ -1,52 +1,115 @@
 #!/usr/bin/env python
 
+import os
+import os.path
 import re
 import sys
 
 from lxml import etree
 
-RE_REVISION = re.compile(ur'(-r\s*\d+|@\d+)')
+RE_REVISION = re.compile(ur'(-r\s*|@)(\d+)')
 SVNROOT = "file:///var/lib/svn"
 
 
 def main():
     doc = etree.parse(sys.argv[1])
+    targets = doc.findall('target')
 
-    externals = unique_externals(doc.findall('target'))
+    header("Externals to a directory:")
+    process_externals(targets, only_dir_locations)
+
+    header("Externals to a file:")
+    process_externals(targets, only_file_locations)
+
+    header("Externals locked to a certain revision::")
+    process_externals(targets, only_locked)
+
+
+def process_externals(targets, map_f):
+    externals = unique_externals(targets, map_f)
 
     print "Found {0} unique externals".format(len(externals))
 
     for ext in sorted(externals):
-        print ext
+        if ext:
+            print ext
 
 
-def unique_externals(targets):
-    ext = []
+def unique_externals(targets, map_f=lambda x: x):
+    return set([map_f(e) for e in parsed_externals(targets)])
 
+
+def parsed_externals(targets):
     for target in targets:
         prop = target.find('property')
-        externals = [l for l in prop.text.split("\n") if l.strip()]
-        ext += [purify_external(e) for e in externals]
 
-    return set(ext)
+        for external in [l for l in prop.text.split("\n") if l.strip()]:
+            yield parse_external(external)
 
 
-def purify_external(external):
-    # Strip "@<rev>", "-r <rev>", "-r<rev>" and split into [external, checkout dir]
-    pieces = RE_REVISION.sub("", external).strip().split(" ", 1)
+def parse_external(external):
+    normalized = RE_REVISION.sub("", external).strip()
+
+    revision = RE_REVISION.search(external)
+    revision = revision.group(2) if revision else None
+
+    pieces = normalized.split(" ", 1)
     pieces = [p.strip() for p in pieces]
 
     # Determine whether the first or the second piece is a reference to another SVN repo/location.
     if pieces[0].startswith("^/") or pieces[0].startswith("/") or pieces[0].startswith("../"):
         location = pieces[0]
+        localpath = pieces[1]
     else:
         location = pieces[1]
+        localpath = pieces[0]
 
     # If the location starts with the "relative to svnroot" operator, normalize it.
     if location.startswith("^/"):
-        return "/svn/" + location[2:]
+        location = "/svn/" + location[2:]
 
-    return location
+    return {
+        "location": location,
+        "path": localpath,
+        "rev": revision,
+    }
+
+#
+# Utilities
+#
+
+
+def header(msg):
+    print ""
+    print msg
+
+#
+# Filters
+#
+
+
+def only_file_locations(external):
+    _, ext = os.path.splitext(external["location"])
+    if not ext:
+        return None
+
+    return external["location"]
+
+
+def only_dir_locations(external):
+    _, ext = os.path.splitext(external["location"])
+    if ext:
+        return None
+
+    return external["location"]
+
+
+def only_locked(external):
+    if not external["rev"]:
+        return None
+
+    return external["rev"] + " " + external["location"]
+
 
 if __name__ == "__main__":
     main()
