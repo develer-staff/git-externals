@@ -111,7 +111,7 @@ def only_locked(external):
     if not external["rev"]:
         return None
 
-    return external["rev"] + " " + external["location"]
+    return "r{0} of {1}".format(external["rev"], external["location"], external["target"])
 
 
 if __name__ == "__main__":
