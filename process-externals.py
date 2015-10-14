@@ -50,7 +50,7 @@ def get_externals_from_target(target):
 
     for external in [l for l in prop.text.split("\n") if l.strip()]:
         ret = parse_external(external)
-        ret["target"] = target.get("path")
+        ret["target"] = target.get("path").replace(SVNROOT, "")
 
         yield ret
 
