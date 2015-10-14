@@ -23,7 +23,7 @@ def main():
     to_file = sorted_by_rank(unique_externals(targets, onlyfile), ranks)
     to_rev = unique_externals(targets, onlylocked)
 
-    # Present
+    # Present - support methods
     def print_ranked(externals):
         print "# of externals", len(externals)
 
@@ -33,6 +33,7 @@ def main():
             for ref in ranks[external["location"]]:
                 print "  " + ref
 
+    # Present
     header("Externals to a directory:")
     print_ranked(to_dir)
 
@@ -40,7 +41,8 @@ def main():
     print_ranked(to_file)
 
     header("Externals locked to a certain revision:")
-    print_ranked(to_rev)
+    for external in to_rev:
+        print "r{0} {1}".format(external["rev"], external["location"])
 
 
 def ranked_externals(targets):
