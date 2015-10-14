@@ -30,7 +30,7 @@ def main():
         for rank, external in reversed(externals):
             print str(rank).ljust(5), external["location"]
 
-            for ref in ranks[external["location"]]:
+            for ref in sorted(ranks[external["location"]]):
                 print "  " + ref
 
     # Present
