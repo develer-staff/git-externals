@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import collections
 import os
 import os.path
 import re
@@ -14,6 +15,7 @@ SVNROOT = "file:///var/lib/svn"
 def main():
     doc = etree.parse(sys.argv[1])
     targets = doc.findall("target")
+    ranked = ranked_externals(targets)
 
     header("Externals to a directory:")
     process_externals(targets, only_dir_locations)
@@ -23,6 +25,18 @@ def main():
 
     header("Externals locked to a certain revision:")
     process_externals(targets, only_locked)
+
+
+def ranked_externals(targets, filterf=None):
+    ret = collections.defaultdict(list)
+
+    for ext in parsed_externals(targets):
+        if filterf and not filterf(ext):
+            continue
+
+        ret[ext["location"]].append(ext["target"])
+
+    return ret
 
 
 def process_externals(targets, map_f):
