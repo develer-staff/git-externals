@@ -13,7 +13,7 @@ SVNROOT = "file:///var/lib/svn"
 
 def main():
     doc = etree.parse(sys.argv[1])
-    targets = doc.findall('target')
+    targets = doc.findall("target")
 
     header("Externals to a directory:")
     process_externals(targets, only_dir_locations)
@@ -21,7 +21,7 @@ def main():
     header("Externals to a file:")
     process_externals(targets, only_file_locations)
 
-    header("Externals locked to a certain revision::")
+    header("Externals locked to a certain revision:")
     process_externals(targets, only_locked)
 
 
