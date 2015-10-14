@@ -39,8 +39,8 @@ def ranked_externals(targets, filterf=None):
     return ret
 
 
-def process_externals(targets, map_f):
-    externals = unique_externals(targets, map_f)
+def process_externals(targets, mapf):
+    externals = unique_externals(targets, mapf)
 
     print "Found {0} unique externals".format(len(externals))
 
@@ -49,8 +49,8 @@ def process_externals(targets, map_f):
             print ext
 
 
-def unique_externals(targets, map_f=lambda x: x):
-    return set([map_f(e) for e in parsed_externals(targets)])
+def unique_externals(targets, mapf=lambda x: x):
+    return set([mapf(e) for e in parsed_externals(targets)])
 
 
 def parsed_externals(targets):
