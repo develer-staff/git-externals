@@ -44,7 +44,10 @@ def parsed_externals(targets):
         prop = target.find('property')
 
         for external in [l for l in prop.text.split("\n") if l.strip()]:
-            yield parse_external(external)
+            ret = parse_external(external)
+            ret["target"] = target.get("path")
+
+            yield ret
 
 
 def parse_external(external):
