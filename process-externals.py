@@ -16,7 +16,7 @@ def main():
     # Essentials
     doc = etree.parse(sys.argv[1])
     targets = doc.findall("target")
-    ranks = ranked_externals(targets)
+    ranks = ranked_externals(targets, notags)
 
     # Extract
     to_dir = sorted_by_rank(unique_externals(targets, onlydir), ranks)
@@ -45,11 +45,12 @@ def main():
         print "r{0} {1}".format(external["rev"], external["location"])
 
 
-def ranked_externals(targets):
+def ranked_externals(targets, filterf=lambda x: True):
     ret = collections.defaultdict(list)
 
     for external in parsed_externals(targets):
-        ret[external["location"]].append(external["target"])
+        if filterf(external):
+            ret[external["location"]].append(external["target"])
 
     return ret
 
