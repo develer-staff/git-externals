@@ -41,13 +41,18 @@ def unique_externals(targets, map_f=lambda x: x):
 
 def parsed_externals(targets):
     for target in targets:
-        prop = target.find('property')
+        for item in get_externals_from_target(target):
+            yield item
 
-        for external in [l for l in prop.text.split("\n") if l.strip()]:
-            ret = parse_external(external)
-            ret["target"] = target.get("path")
 
-            yield ret
+def get_externals_from_target(target):
+    prop = target.find("property")
+
+    for external in [l for l in prop.text.split("\n") if l.strip()]:
+        ret = parse_external(external)
+        ret["target"] = target.get("path")
+
+        yield ret
 
 
 def parse_external(external):
