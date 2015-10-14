@@ -74,7 +74,7 @@ def parse_external(external):
 
     # If the location starts with the "relative to svnroot" operator, normalize it.
     if location.startswith("^/"):
-        location = "/svn/" + location[2:]
+        location = location[1:]
 
     return {
         "location": location,
