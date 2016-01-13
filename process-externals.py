@@ -25,22 +25,24 @@ def main():
 
     # View data - support methods
     def print_ranked(externals):
-        print "# of externals", len(externals)
+        print ''
+        print "Number of externals", len(externals)
 
         for rank, external in reversed(externals):
-            print str(rank).ljust(5), external["location"]
+            print ''
+            print 'External {} referenced {} times by:'.format(external["location"], rank)
 
             for ref in sorted(ranks[external["location"]]):
                 print "  " + ref
 
     # View data
-    header("Externals to a directory:")
+    header("Externals to a directory")
     print_ranked(to_dir)
 
-    header("Externals to a file:")
+    header("Externals to a file")
     print_ranked(to_file)
 
-    header("Externals locked to a certain revision:")
+    header("Externals locked to a certain revision")
     for external in to_rev:
         print "r{0} {1}".format(external["rev"], external["location"])
 
@@ -117,8 +119,12 @@ def parse_external(external):
 
 
 def header(msg):
-    print ""
-    print msg
+    banner = '=' * 78
+
+    print ''
+    print banner
+    print '{:^78}'.format(msg)
+    print banner
 
 #
 # Filters
