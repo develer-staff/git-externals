@@ -4,24 +4,33 @@ import collections
 import os
 import os.path
 import re
-import sys
 
 from lxml import etree
+from argparse import ArgumentParser, FileType
 
 RE_REVISION = re.compile(ur'(-r\s*|@)(\d+)')
 SVNROOT = "file:///var/lib/svn"
 
 
+def get_args():
+    parser = ArgumentParser()
+    parser.add_argument('ext', type=FileType('r'),
+            help='XML file containing the SVN externals to parse')
+
+    parser.add_argument('--to-print', nargs='+',
+        choices=['all', 'dir', 'file', 'locked', 'unique'], default='all',
+        help='print only specified externals')
+
+    return parser.parse_args()
+
+
 def main():
+    args = get_args()
+
     # Essentials
-    doc = etree.parse(sys.argv[1])
+    doc = etree.parse(args.ext)
     targets = doc.findall("target")
     ranks = ranked_externals(targets, notags)
-
-    # Extract
-    to_dir = sorted_by_rank(unique_externals(targets, onlydir), ranks)
-    to_file = sorted_by_rank(unique_externals(targets, onlyfile), ranks)
-    to_rev = unique_externals(targets, onlylocked)
 
     # View data - support methods
     def print_ranked(externals):
@@ -36,16 +45,51 @@ def main():
                 print "  " + ref
 
     # View data
-    header("Externals to a directory")
-    print_ranked(to_dir)
+    def print_externals_to_dir():
+        to_dir = sorted_by_rank(unique_externals(targets, onlydir), ranks)
+        header("Externals to a directory")
+        print_ranked(to_dir)
 
-    header("Externals to a file")
-    print_ranked(to_file)
+    def print_externals_to_file():
+        to_file = sorted_by_rank(unique_externals(targets, onlyfile), ranks)
+        header("Externals to a file")
+        print_ranked(to_file)
 
-    header("Externals locked to a certain revision")
-    for external in to_rev:
-        print "r{0} {1}".format(external["rev"], external["location"])
+    def print_locked_externals():
+        to_rev = unique_externals(targets, onlylocked)
+        header("Externals locked to a certain revision")
+        for external in to_rev:
+            print "r{0} {1}".format(external["rev"], external["location"])
 
+    def print_unique_externals():
+        externals = [e['location'] for e in unique_externals(targets)]
+        externals.sort()
+        header("Unique externals")
+
+        print ''
+        print 'Found {} unique externals'.format(len(externals))
+        print ''
+        for external in externals:
+            print external
+
+
+    printers = [
+        ('dir', print_externals_to_dir),
+        ('file', print_externals_to_file),
+        ('locked', print_locked_externals),
+        ('unique', print_unique_externals),
+    ]
+
+    if 'all' in args.to_print:
+        funcs = [p[1] for p in printers]
+    else:
+        funcs = []
+        for tp in sorted(set(args.to_print)):
+            fn = [p[1] for p in printers if p[0] == tp][0]
+            funcs.append(fn)
+
+    for fn in funcs:
+        fn()
 
 def ranked_externals(targets, filterf=lambda x: True):
     ret = collections.defaultdict(list)
