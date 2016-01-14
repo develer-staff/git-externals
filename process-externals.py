@@ -21,6 +21,9 @@ def get_args():
         choices=['all', 'dir', 'file', 'locked', 'unique'], default='all',
         help='print only specified externals')
 
+    parser.add_argument('--tags', action='store_true', default=False,
+        help='analyze externals only in tags')
+
     return parser.parse_args()
 
 
@@ -30,7 +33,9 @@ def main():
     # Essentials
     doc = etree.parse(args.ext)
     targets = doc.findall("target")
-    ranks = ranked_externals(targets, notags)
+
+    filterfn = notags if not args.tags else withtags
+    ranks = ranked_externals(targets, filterfn)
 
     # View data - support methods
     def print_ranked(externals):
@@ -178,6 +183,8 @@ def header(msg):
 def notags(external):
     return "/tags/" not in external["target"]
 
+def withtags(external):
+    return '/tags/' in external['target']
 
 def onlyfile(external):
     return os.path.splitext(external["location"])[1] != ""
