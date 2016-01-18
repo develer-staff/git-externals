@@ -32,7 +32,9 @@ def chdir(path):
 
 
 def name_of(remote):
-    return remote.rsplit('/', 1)[1]
+    if remote.endswith('/'):
+        remote = remote[:-1]
+    return os.path.basename(remote)
 
 
 def get_branches_and_tags():
