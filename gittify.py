@@ -10,7 +10,7 @@ import json
 import sys
 
 from lxml import etree
-from cleanup_repo import git, cleanup, chdir, checkout, name_of
+from cleanup_repo import git, cleanup, chdir, checkout
 from process_externals import unique_externals
 
 
@@ -58,6 +58,13 @@ def tags():
     return [line.split('/')[2] for line in refs.splitlines()]
 
 
+def has_stdlayout(repo):
+    stdlayout_entries = set(['trunk/', 'branches/', 'tags/'])
+    entries = set(svn('ls', repo).splitlines())
+
+    return entries == stdlayout_entries
+
+
 def gittify_branch(repo, branch_name, obj, svn_server):
     gittified = set()
 
@@ -79,25 +86,35 @@ def gittify_branch(repo, branch_name, obj, svn_server):
     return gittified
 
 
-def gittify(repo, svn_server):
+def gittify(repo, svn_server, basename_only=True):
     gittified = set([repo])
 
     # check if already gittified
     if os.path.exists(repo):
         return gittified
 
-    tmprepo = '{}.tmp'.format(repo)
+    repo_name = repo
+    if basename_only:
+        repo_name = os.path.basename(repo)
+
+    tmprepo = '{}.tmp'.format(repo_name)
+
+    remote_repo = os.path.join(svn_server, repo)
+    is_std = has_stdlayout(remote_repo)
 
     if not os.path.exists(tmprepo):
-        # FIXME: handle non stdlayout repos, as most of foosvn/packages
         # FIXME: handle authors file for mapping SVN users to Git users
-        git('svn', 'clone', '--stdlayout', '--prefix=origin/',
-            os.path.join(svn_server, repo), tmprepo)
+        layout_opt = '--stdlayout' if is_std else '--trunk=.'
+
+        git('svn', 'clone', layout_opt, '--prefix=origin/',
+            remote_repo, tmprepo)
         cleanup(tmprepo)
 
     with chdir(tmprepo):
         for branch in branches():
-            if branch != 'master':
+            if not is_std:
+                subrepo = repo
+            elif branch != 'master':
                 subrepo = os.path.join(repo, 'branches', branch)
             else:
                 subrepo = os.path.join(repo, 'trunk')
@@ -107,18 +124,20 @@ def gittify(repo, svn_server):
             external_gittified = gittify_branch(subrepo, branch, None, svn_server)
             gittified.update(external_gittified)
 
-        # should work, but not tested yet :)
         for tag in tags():
-            subrepo = os.path.join(svn_server, 'tags', tag)
+            subrepo = os.path.join(repo, 'tags', tag)
             external_gittified = gittify_branch(subrepo, tag, tag, svn_server)
+
+            # following should work, but not properly tested yet :)
             if len(external_gittified) > 0:
                 gittified.update(gittify_branch)
                 git('tag', '-d', tag)
                 git('tag', tag, tag)
+
             git('branch', '-D', tag)
 
-    git('clone', '--bare', tmprepo, repo)
-    with chdir(repo):
+    git('clone', '--bare', tmprepo, repo_name)
+    with chdir(repo_name):
         git('remote', 'rm', 'origin')
 
     shutil.rmtree(tmprepo)
@@ -129,4 +148,5 @@ def gittify(repo, svn_server):
 if __name__ == '__main__':
     for r in sys.argv[1:]:
         root = extract_repo_root(r)
-        gittify(r[len(root)+1:], root)
+        repo = r[len(root) + 1:]
+        gittify(repo, root)
