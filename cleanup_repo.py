@@ -75,12 +75,15 @@ def cleanup(repo):
     with chdir(repo):
         branches, tags = get_branches_and_tags()
 
+        revbound_brach_re = re.compile('.+@\d+')
         for branch in branches:
             # trunk is automatically remapped to master by git svn
-            if name_of(branch) == 'trunk':
+            branch_name = name_of(branch)
+            is_revbound = revbound_brach_re.match(branch_name) is not None
+            if branch_name == 'trunk' or is_revbound:
                 continue
 
-            with checkout(name_of(branch), branch):
+            with checkout(branch_name, branch):
                 pass
 
         for tag in tags:
