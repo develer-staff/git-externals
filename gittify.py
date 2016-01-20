@@ -2,7 +2,6 @@
 
 from __future__ import unicode_literals
 
-import subprocess
 import os
 import os.path
 import shutil
@@ -14,18 +13,8 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from cleanup_repo import git, cleanup, chdir, checkout
+from cleanup_repo import git, svn, cleanup, chdir, checkout
 from process_externals import unique_externals
-
-
-def svn(*args):
-    p = subprocess.Popen(['svn'] + list(args), stdout=subprocess.PIPE)
-    output = p.communicate()[0]
-
-    if p.returncode != 0:
-        raise Exception('svn failed, err code {}'.format(p.returncode))
-
-    return output
 
 
 def get_externals(repo):
@@ -62,11 +51,24 @@ def tags():
     return [line.split('/')[2] for line in refs.splitlines()]
 
 
-def has_stdlayout(repo):
-    stdlayout_entries = set(['trunk/', 'branches/', 'tags/'])
+def get_layout_opts(repo):
     entries = set(svn('ls', repo).splitlines())
 
-    return entries == stdlayout_entries
+    opts = [
+        '--trunk={}'.format('trunk' if 'trunk/' in entries else '.')
+    ]
+
+    if 'branches/' in entries:
+        opts.append(
+            '--branches=branches'
+        )
+
+    if 'tags/' in entries:
+        opts.append(
+            '--tags=tags'
+        )
+
+    return opts
 
 
 def gittify_branch(repo, branch_name, obj, svn_server):
@@ -104,15 +106,17 @@ def gittify(repo, svn_server, basename_only=True):
     tmprepo = '{}.tmp'.format(repo_name)
 
     remote_repo = os.path.join(svn_server, repo)
-    is_std = has_stdlayout(remote_repo)
+    layout_opts = get_layout_opts(remote_repo)
+    is_std = len(layout_opts) == 3
 
     if not os.path.exists(tmprepo):
         # FIXME: handle authors file for mapping SVN users to Git users
-        layout_opt = '--stdlayout' if is_std else '--trunk=.'
+        # layout_opts must come before the arguments
+        args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, tmprepo]
+        git(*args)
 
-        git('svn', 'clone', layout_opt, '--prefix=origin/',
-            remote_repo, tmprepo)
-        cleanup(tmprepo)
+        branch_repo = os.path.join(repo, 'branches') if is_std else None
+        cleanup(tmprepo, False, branch_repo)
 
     with chdir(tmprepo):
         for branch in branches():
