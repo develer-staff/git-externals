@@ -5,7 +5,11 @@ import os
 import os.path
 import re
 
-from lxml import etree
+try:
+    from lxml import etree as ET
+except ImportError:
+    from xml.etree import ElementTree as ET
+
 from argparse import ArgumentParser, FileType
 
 RE_REVISION = re.compile(ur'(-r\s*|@)(\d+)')
@@ -31,7 +35,7 @@ def main():
     args = get_args()
 
     # Essentials
-    doc = etree.parse(args.ext)
+    doc = ET.parse(args.ext)
     targets = doc.findall("target")
 
     filterfn = notags if not args.tags else withtags

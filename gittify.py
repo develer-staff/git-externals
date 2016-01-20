@@ -9,7 +9,11 @@ import shutil
 import json
 import sys
 
-from lxml import etree
+try:
+    from lxml import etree as ET
+except ImportError:
+    from xml.etree import ElementTree as ET
+
 from cleanup_repo import git, cleanup, chdir, checkout
 from process_externals import unique_externals
 
@@ -27,7 +31,7 @@ def svn(*args):
 def get_externals(repo):
     data = svn('propget', '--xml', '-R', 'svn:externals', repo)
 
-    targets = etree.fromstring(data).findall('target')
+    targets = ET.fromstring(data).findall('target')
 
     return unique_externals(targets)
 
@@ -44,7 +48,7 @@ def extract_repo_name(remote_name):
 def extract_repo_root(repo):
     output = svn('info', '--xml', repo)
 
-    rootnode = etree.fromstring(output)
+    rootnode = ET.fromstring(output)
     return rootnode.find('./entry/repository/root').text
 
 
