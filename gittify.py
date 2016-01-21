@@ -54,9 +54,12 @@ def tags():
 def get_layout_opts(repo):
     entries = set(svn('ls', repo).splitlines())
 
-    opts = [
-        '--trunk={}'.format('trunk' if 'trunk/' in entries else '.')
-    ]
+    opts = []
+
+    if 'trunk/' in entries:
+        opts.append(
+            '--trunk=trunk'
+        )
 
     if 'branches/' in entries:
         opts.append(
@@ -69,6 +72,12 @@ def get_layout_opts(repo):
         )
 
     return opts
+
+
+def remote_rm(remote):
+    remotes = set(git('remote').splitlines())
+    if remote in remotes:
+        git('remote', 'rm', remote)
 
 
 def gittify_branch(repo, branch_name, obj, svn_server):
@@ -93,6 +102,10 @@ def gittify_branch(repo, branch_name, obj, svn_server):
 
 
 def gittify(repo, svn_server, basename_only=True):
+    # following to check
+    if repo[0] == '/':
+        repo = repo[1:]
+
     gittified = set([repo])
 
     # check if already gittified
@@ -115,7 +128,7 @@ def gittify(repo, svn_server, basename_only=True):
         args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, tmprepo]
         git(*args)
 
-        branch_repo = os.path.join(repo, 'branches') if is_std else None
+        branch_repo = os.path.join(remote_repo, 'branches') if is_std else None
         cleanup(tmprepo, False, branch_repo)
 
     with chdir(tmprepo):
@@ -146,7 +159,7 @@ def gittify(repo, svn_server, basename_only=True):
 
     git('clone', '--bare', tmprepo, repo_name)
     with chdir(repo_name):
-        git('remote', 'rm', 'origin')
+        remote_rm('origin')
 
     shutil.rmtree(tmprepo)
 

@@ -118,10 +118,14 @@ def cleanup(repo, with_revbound=False, branch_repo=None):
 
         revbound_re = re.compile(r'.+@\d+')
         for branch in branches:
-            # trunk is automatically remapped to master by git svn
             branch_name = name_of(branch)
             is_revbound = revbound_re.match(branch_name) is not None
-            if branch_name == 'trunk' or (not with_revbound and is_revbound):
+
+            # trunk is automatically remapped to master by git svn
+            if branch_name in ('trunk', 'git-svn'):
+                continue
+
+            if not with_revbound and is_revbound:
                 continue
 
             if branch_repo is not None and branch_name not in remotes_branch:
