@@ -92,3 +92,7 @@ def header(msg):
     print(banner)
     print('{:^78}'.format(msg))
     print(banner)
+
+
+def print_msg(msg):
+    print('  {}'.format(msg))

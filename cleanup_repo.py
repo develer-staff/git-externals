@@ -4,7 +4,7 @@ import os.path
 import re
 import argparse
 
-from utils import svn, git, SVNError, checkout, chdir
+from utils import svn, git, SVNError, checkout, chdir, print_msg
 
 TAGS_RE = re.compile('.+/tags/(.+)')
 
@@ -61,30 +61,54 @@ def cleanup(repo, with_revbound=False, remote=None):
 
         branches, tags = get_branches_and_tags()
 
-        revbound_re = re.compile(r'.+@\d+')
+        revbound_re = re.compile(r'.+@(\d+)')
+
+        print_msg('Cleaning up branches...')
         for branch in branches:
             branch_name = name_of(branch)
-            is_revbound = revbound_re.match(branch_name) is not None
+
+            match = revbound_re.match(branch_name)
+            is_revbound = match is not None
+            rev = match.group(1) if is_revbound else None
 
             # trunk is automatically remapped to master by git svn
             if branch_name in ('trunk', 'git-svn'):
                 continue
 
             if not with_revbound and is_revbound:
+                print_msg('Skipping cleanup of {} because it is bound to rev {}'
+                          .format(branch_name, rev))
                 continue
 
             if remote is not None and branch_name not in remote_branches:
+                print_msg('Skipping cleanup of {} because it has been deleted(maybe after a merge?)'
+                          .format(branch_name))
                 continue
 
+            print_msg('Cleaning up branch {}'.format(branch_name))
             with checkout(branch_name, branch):
                 pass
 
+        print_msg('Cleaning up tags')
         for tag in tags:
-            if remote is not None and tag not in remote_tags:
+            match = revbound_re.match(tag)
+            is_revbound = match is not None
+            rev = match.group(1) if is_revbound else None
+
+            tag_name = name_of(tag)
+
+            if remote is not None and tag_name not in remote_tags:
+                print_msg('Skipping tag {} because it has been deleted'
+                          .format(tag))
                 continue
 
-            if with_revbound or revbound_re.match(tag) is None:
-                branchtag_to_tag(name_of(tag), tag)
+            if not with_revbound and is_revbound:
+                print_msg('Skipping tag {} because it is bound to rev {}'
+                          .format(tag, rev))
+                continue
+
+            print_msg('Cleaning up tag {}'.format(tag))
+            branchtag_to_tag(tag_name, tag)
 
 
 def main():
