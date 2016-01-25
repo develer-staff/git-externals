@@ -120,8 +120,8 @@ def gittify(repo, svn_server, basename_only=True, ignore_not_found=True):
 
     gittified = set([repo_name])
 
-    # check if already gittified
     if os.path.exists(repo_name):
+        print_msg('{} already gittified'.format(repo_name))
         return gittified
 
     tmprepo = '{}.tmp'.format(repo_name)
