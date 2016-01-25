@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import subprocess
 import os
@@ -32,7 +32,7 @@ class SVNError(ProgError):
 
 def svn(*args):
     p = subprocess.Popen(['svn'] + list(args), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
+                         stderr=subprocess.PIPE, universal_newlines=True)
     output, err = p.communicate()
 
     if p.returncode != 0:
@@ -43,7 +43,7 @@ def svn(*args):
 
 def git(*args):
     p = subprocess.Popen(['git'] + list(args), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
+                         stderr=subprocess.PIPE, universal_newlines=True)
     output, err = p.communicate()
 
     if p.returncode != 0:
