@@ -87,8 +87,11 @@ def get_branches_and_tags():
 
 @contextmanager
 def checkout(branch, remote=None):
+    branches = git('for-each-ref', 'refs/heads', "--format=%(refname)")
+    branches = [line.split('/')[2] for line in branches.splitlines()]
+
     # if remote is not None -> create local branch from remote
-    if remote is not None:
+    if remote is not None and branch not in set(branches):
         git('checkout', '-b', branch, remote)
     else:
         git('checkout', branch)
@@ -104,15 +107,27 @@ def branchtag_to_tag(tag_name, remote_tag):
     git('branch', '-D', tag_name)
 
 
-def get_unmerged_branches(repo):
-    entries = svn('ls', repo).splitlines()
+def get_merged_branches(repo):
+    try:
+        entries = svn('ls', os.path.join(repo, 'branches')).splitlines()
+    except SVNError:
+        return set()
     return set([b[:-1] for b in entries])
 
 
-def cleanup(repo, with_revbound=False, branch_repo=None):
+def get_removed_tags(repo):
+    try:
+        entries = svn('ls', os.path.join(repo, 'tags')).splitlines()
+    except SVNError:
+        return set()
+    return set([t[:-1] for t in entries])
+
+
+def cleanup(repo, with_revbound=False, remote=None):
     with chdir(repo):
-        if branch_repo is not None:
-            remotes_branch = get_unmerged_branches(branch_repo)
+        if remote is not None:
+            remote_branches = get_merged_branches(remote)
+            remote_tags = get_removed_tags(remote)
 
         branches, tags = get_branches_and_tags()
 
@@ -128,13 +143,16 @@ def cleanup(repo, with_revbound=False, branch_repo=None):
             if not with_revbound and is_revbound:
                 continue
 
-            if branch_repo is not None and branch_name not in remotes_branch:
+            if remote is not None and branch_name not in remote_branches:
                 continue
 
             with checkout(branch_name, branch):
                 pass
 
         for tag in tags:
+            if remote is not None and tag not in remote_tags:
+                continue
+
             if with_revbound or revbound_re.match(tag) is None:
                 branchtag_to_tag(name_of(tag), tag)
 
@@ -142,14 +160,14 @@ def cleanup(repo, with_revbound=False, branch_repo=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('repo', help='path to local repo to cleanup')
-    parser.add_argument('--rm-merged', default=None,
-        help='remote repo containing all the branches, typically the part that ends with braches/')
+    parser.add_argument('--remote', default=None,
+        help='remote repo containing all the branches and tags')
     parser.add_argument('--with-revbound', default=False, action='store_true',
         help='keep both revision bounded branches and tags')
 
     args = parser.parse_args()
 
-    cleanup(args.repo, args.with_revbound, args.rm_merged)
+    cleanup(args.repo, args.with_revbound, args.remote)
 
 if __name__ == '__main__':
     main()

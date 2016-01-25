@@ -13,7 +13,7 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from cleanup_repo import git, svn, cleanup, chdir, checkout
+from cleanup_repo import git, svn, cleanup, chdir, checkout, SVNError
 from process_externals import unique_externals
 
 
@@ -31,7 +31,20 @@ def write_extfile(exts, filename='svn_externals'):
 
 
 def extract_repo_name(remote_name):
-    return remote_name[1:remote_name.index('/', 1)]
+    if remote_name[0] == '/':
+        remote_name = remote_name[1:]
+
+    if remote_name.startswith('svn/'):
+        remote_name = remote_name[len('svn/'):]
+
+    if remote_name.startswith('packages/'):
+        i = len('packages/') - 1
+        return 'packages/' + extract_repo_name(remote_name[i:])
+
+    j = remote_name.find('/')
+    if j < 0:
+        return remote_name
+    return remote_name[:j]
 
 
 def extract_repo_root(repo):
@@ -106,20 +119,25 @@ def gittify(repo, svn_server, basename_only=True):
     if repo[0] == '/':
         repo = repo[1:]
 
-    gittified = set([repo])
-
-    # check if already gittified
-    if os.path.exists(repo):
-        return gittified
-
     repo_name = repo
     if basename_only:
         repo_name = os.path.basename(repo)
 
+    gittified = set([repo_name])
+
+    # check if already gittified
+    if os.path.exists(repo_name):
+        return gittified
+
+
     tmprepo = '{}.tmp'.format(repo_name)
 
     remote_repo = os.path.join(svn_server, repo)
-    layout_opts = get_layout_opts(remote_repo)
+    try:
+        layout_opts = get_layout_opts(remote_repo)
+    except SVNError as e:
+        return set()
+
     is_std = len(layout_opts) == 3
 
     if not os.path.exists(tmprepo):
@@ -128,40 +146,41 @@ def gittify(repo, svn_server, basename_only=True):
         args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, tmprepo]
         git(*args)
 
-        branch_repo = os.path.join(remote_repo, 'branches') if is_std else None
-        cleanup(tmprepo, False, branch_repo)
+        cleanup(tmprepo, False, remote_repo)
 
-    with chdir(tmprepo):
-        for branch in branches():
-            if not is_std:
-                subrepo = repo
-            elif branch != 'master':
-                subrepo = os.path.join(repo, 'branches', branch)
-            else:
-                subrepo = os.path.join(repo, 'trunk')
+        with chdir(tmprepo):
+            for branch in branches():
+                if not is_std:
+                    subrepo = repo
+                elif branch != 'master':
+                    subrepo = os.path.join(repo, 'branches', branch)
+                else:
+                    subrepo = os.path.join(repo, 'trunk')
 
-            # we've already created a local branch for each
-            # origin branch with cleanup
-            external_gittified = gittify_branch(subrepo, branch, None, svn_server)
-            gittified.update(external_gittified)
+                # we've already created a local branch for each
+                # origin branch with cleanup
+                external_gittified = gittify_branch(subrepo, branch, None, svn_server)
+                gittified.update(external_gittified)
 
-        for tag in tags():
-            subrepo = os.path.join(repo, 'tags', tag)
-            external_gittified = gittify_branch(subrepo, tag, tag, svn_server)
+            for tag in tags():
+                subrepo = os.path.join(repo, 'tags', tag)
+                external_gittified = gittify_branch(subrepo, tag, tag, svn_server)
 
-            # following should work, but not properly tested yet :)
-            if len(external_gittified) > 0:
-                gittified.update(gittify_branch)
-                git('tag', '-d', tag)
-                git('tag', tag, tag)
+                if len(external_gittified) > 0:
+                    gittified.update(external_gittified)
+                    git('tag', '-d', tag)
+                    git('tag', tag, tag)
 
-            git('branch', '-D', tag)
+                git('branch', '-D', tag)
 
-    git('clone', '--bare', tmprepo, repo_name)
-    with chdir(repo_name):
-        remote_rm('origin')
+        # avoid cycles, because it could be created by a previous call
+        # from an external
+        if not os.path.exists(repo_name):
+            git('clone', '--bare', tmprepo, repo_name)
+            with chdir(repo_name):
+                remote_rm('origin')
 
-    shutil.rmtree(tmprepo)
+    # shutil.rmtree(tmprepo)
 
     return gittified
 
