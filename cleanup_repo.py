@@ -1,74 +1,12 @@
 #!/usr/bin/env python
 
-import subprocess
 import os.path
 import re
 import argparse
 
-from contextlib import contextmanager
+from utils import svn, git, SVNError, checkout, chdir
 
 TAGS_RE = re.compile('.+/tags/(.+)')
-
-
-class ProgError(Exception):
-    def __init__(self, prog='', errcode=1, errmsg=''):
-        super(ProgError, self).__init__(prog + ' ' + errmsg)
-        self.prog = prog
-        self.errcode = errcode
-
-    def __str__(self):
-        name = '{}Error'.format(self.prog.title())
-        return '<{}: {} {}>'.format(name, self.errcode, self.message)
-
-
-class GitError(ProgError):
-    def __init__(self, *args, **kwargs):
-        super(GitError, self).__init__(prog='git', *args, **kwargs)
-
-
-class SVNError(ProgError):
-    def __init__(self, *args, **kwargs):
-        super(SVNError, self).__init__(prog='svn', *args, **kwargs)
-
-
-def svn(*args):
-    p = subprocess.Popen(['svn'] + list(args), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-    output, err = p.communicate()
-
-    if p.returncode != 0:
-        raise SVNError(errcode=p.returncode, errmsg=err)
-
-    return output
-
-
-def git(*args):
-    p = subprocess.Popen(['git'] + list(args), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-    output, err = p.communicate()
-
-    if p.returncode != 0:
-        raise GitError(errcode=p.returncode, errmsg=err)
-
-    return output
-
-
-@contextmanager
-def chdir(path):
-    cwd = os.path.abspath(os.getcwd())
-
-    try:
-        os.chdir(path)
-        yield
-    finally:
-        os.chdir(cwd)
-
-
-def name_of(remote):
-    if remote.endswith('/'):
-        remote = remote[:-1]
-    return os.path.basename(remote)
-
 
 def get_branches_and_tags():
     output = git('branch', '-r')
@@ -85,18 +23,10 @@ def get_branches_and_tags():
     return branches, tags
 
 
-@contextmanager
-def checkout(branch, remote=None):
-    branches = git('for-each-ref', 'refs/heads', "--format=%(refname)")
-    branches = [line.split('/')[2] for line in branches.splitlines()]
-
-    # if remote is not None -> create local branch from remote
-    if remote is not None and branch not in set(branches):
-        git('checkout', '-b', branch, remote)
-    else:
-        git('checkout', branch)
-    yield
-    git('checkout', 'master')
+def name_of(remote):
+    if remote.endswith('/'):
+        remote = remote[:-1]
+    return os.path.basename(remote)
 
 
 def branchtag_to_tag(tag_name, remote_tag):

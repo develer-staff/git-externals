@@ -7,13 +7,15 @@ import os.path
 import shutil
 import json
 import sys
+import glob
 
 try:
     from lxml import etree as ET
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from cleanup_repo import git, svn, cleanup, chdir, checkout, SVNError
+from cleanup_repo import cleanup
+from utils import git, svn, chdir, checkout, SVNError, branches, tags
 from process_externals import unique_externals
 
 
@@ -52,16 +54,6 @@ def extract_repo_root(repo):
 
     rootnode = ET.fromstring(output)
     return rootnode.find('./entry/repository/root').text
-
-
-def branches():
-    refs = git('for-each-ref', 'refs/heads', "--format=%(refname)")
-    return [line.split('/')[2] for line in refs.splitlines()]
-
-
-def tags():
-    refs = git('for-each-ref', 'refs/tags', "--format=%(refname)")
-    return [line.split('/')[2] for line in refs.splitlines()]
 
 
 def get_layout_opts(repo):
@@ -129,7 +121,6 @@ def gittify(repo, svn_server, basename_only=True):
     if os.path.exists(repo_name):
         return gittified
 
-
     tmprepo = '{}.tmp'.format(repo_name)
 
     remote_repo = os.path.join(svn_server, repo)
@@ -142,7 +133,6 @@ def gittify(repo, svn_server, basename_only=True):
 
     if not os.path.exists(tmprepo):
         # FIXME: handle authors file for mapping SVN users to Git users
-        # layout_opts must come before the arguments
         args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, tmprepo]
         git(*args)
 
@@ -180,9 +170,12 @@ def gittify(repo, svn_server, basename_only=True):
             with chdir(repo_name):
                 remote_rm('origin')
 
-    # shutil.rmtree(tmprepo)
-
     return gittified
+
+
+def remove_tmp_repos():
+    for tmp_repo in glob.iglob('*.tmp'):
+        shutil.rmtree(tmp_repo)
 
 
 if __name__ == '__main__':
@@ -190,3 +183,5 @@ if __name__ == '__main__':
         root = extract_repo_root(r)
         repo = r[len(root) + 1:]
         gittify(repo, root)
+
+    remove_tmp_repos()

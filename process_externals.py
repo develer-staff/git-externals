@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import unicode_literals, print_function
+
 import collections
 import os
 import os.path
@@ -10,9 +12,10 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
+from utils import header
 from argparse import ArgumentParser, FileType
 
-RE_REVISION = re.compile(ur'(-r\s*|@)(\d+)')
+RE_REVISION = re.compile(r'(-r\s*|@)(\d+)')
 SVNROOT = "file:///var/lib/svn"
 
 
@@ -43,15 +46,15 @@ def main():
 
     # View data - support methods
     def print_ranked(externals):
-        print ''
-        print "Number of externals", len(externals)
+        print('')
+        print("Number of externals", len(externals))
 
         for rank, external in reversed(externals):
-            print ''
-            print 'External {} referenced {} times by:'.format(external["location"], rank)
+            print('')
+            print('External {} referenced {} times by:'.format(external["location"], rank))
 
             for ref in sorted(ranks[external["location"]]):
-                print "  " + ref
+                print("  " + ref)
 
     # View data
     def print_externals_to_dir():
@@ -68,18 +71,18 @@ def main():
         to_rev = unique_externals(targets, onlylocked)
         header("Externals locked to a certain revision")
         for external in to_rev:
-            print "r{0} {1}".format(external["rev"], external["location"])
+            print("r{0} {1}".format(external["rev"], external["location"]))
 
     def print_unique_externals():
         externals = [e['location'] for e in unique_externals(targets)]
         externals.sort()
         header("Unique externals")
 
-        print ''
-        print 'Found {} unique externals'.format(len(externals))
-        print ''
+        print('')
+        print('Found {} unique externals'.format(len(externals)))
+        print('')
         for external in externals:
-            print external
+            print(external)
 
 
     printers = [
@@ -100,6 +103,7 @@ def main():
     for fn in funcs:
         fn()
 
+
 def ranked_externals(targets, filterf=lambda x: True):
     ret = collections.defaultdict(list)
 
@@ -116,7 +120,7 @@ def sorted_by_rank(externals, ranks):
     for external in externals:
         ret.append((len(ranks[external["location"]]), external))
 
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (x[0], x[1]['location']))
 
 
 def unique_externals(targets, filterf=lambda x: True):
@@ -166,18 +170,6 @@ def parse_external(external):
         "rev": revision,
     }
 
-#
-# Utilities
-#
-
-
-def header(msg):
-    banner = '=' * 78
-
-    print ''
-    print banner
-    print '{:^78}'.format(msg)
-    print banner
 
 #
 # Filters
