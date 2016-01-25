@@ -40,9 +40,13 @@ def extract_repo_name(remote_name):
     if remote_name.startswith('svn/'):
         remote_name = remote_name[len('svn/'):]
 
-    if remote_name.startswith('packages/'):
-        i = len('packages/') - 1
-        return 'packages/' + extract_repo_name(remote_name[i:])
+    # a svn super repo is a container of other repos
+    super_repos = set(['packages/', 'vendor/'])
+
+    for super_repo in super_repos:
+        if remote_name.startswith(super_repo):
+            i = len(super_repo) - 1
+            return super_repo + extract_repo_name(remote_name[i:])
 
     j = remote_name.find('/')
     if j < 0:
