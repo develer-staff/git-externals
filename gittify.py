@@ -108,7 +108,8 @@ def gittify_branch(repo, branch_name, obj, svn_server):
 
             write_extfile(externals)
             git('add', 'svn_externals')
-            git('commit', '-m', 'gittify: create svn_externals file')
+            git('commit', '-m', 'gittify: create svn_externals file',
+                '--author="gittify <>"')
 
     return gittified
 
