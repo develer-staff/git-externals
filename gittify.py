@@ -8,6 +8,12 @@ import shutil
 import json
 import sys
 import glob
+import re
+
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
 
 try:
     from lxml import etree as ET
@@ -19,6 +25,9 @@ from utils import git, svn, chdir, checkout, SVNError, branches, tags, header,\
     print_msg
 from process_externals import unique_externals
 
+GITSVN_EXT = '.gitsvn'
+GIT_EXT = '.git'
+
 
 def get_externals(repo):
     data = svn('propget', '--xml', '-R', 'svn:externals', repo)
@@ -27,8 +36,51 @@ def get_externals(repo):
 
     return unique_externals(targets)
 
+BRANCH_RE = re.compile(r'branches/(.+)')
+TAG_RE = re.compile(r'tags/(.+)')
 
-def write_extfile(exts, filename='svn_externals'):
+
+def svnext_to_gitext(ext, git_server):
+    gitext = {}
+
+    path = urlparse(ext['target']).path
+
+    repo_name = extract_repo_name(path)
+    remote_dir = extract_repo_path(path, repo_name)
+
+    gitext['destination'] = os.path.join(remote_dir, ext['path'])
+
+    ext_repo = os.path.basename(extract_repo_name(ext['location']))
+    if ext_repo.startswith('..'):
+        # assume for simplicity it's the current repo(e.g. multiple .. not allowed)
+        ext_repo = repo_name
+
+    gitext['source'] = extract_repo_path(ext['location'], ext_repo)
+    gitext['repo'] = os.path.join(git_server, ext_repo)
+
+    gitext['branch'] = 'master'
+    match = BRANCH_RE.match(ext['location'])
+    if match is not None:
+        gitext['branch'] = match.group(1).split('/')[0]
+
+    gitext['ref'] = None
+    if ext['rev'] is not None:
+        # svn rev -> git sha
+        rev = 'r' + ext['rev'] if ext['rev'][0] != 'r' else ext['rev']
+
+        with chdir(os.path.join('..', ext_repo + GITSVN_EXT)):
+            gitext['ref'] = git('svn', 'find-rev', rev).strip()
+    else:
+        match = TAG_RE.match(ext['location'])
+        if match is not None:
+            gitext['ref'] = match.group(1)
+
+    return gitext
+
+
+def write_extfile(exts, filename='git_externals.json', git_server='yourserver'):
+    exts = [svnext_to_gitext(e, git_server) for e in exts]
+
     with open(filename, 'wt') as fd:
         json.dump(exts, fd, indent=4)
 
@@ -59,6 +111,27 @@ def extract_repo_root(repo):
 
     rootnode = ET.fromstring(output)
     return rootnode.find('./entry/repository/root').text
+
+
+def extract_repo_path(path, repo_name):
+    if path[0] == '/':
+        path = path[1:]
+
+    remote_dir = []
+    for subpath in path.split('/')[::-1]:
+        if subpath in set(['trunk', 'branches', 'tags', repo_name]):
+            # remove tag/branch name
+            if subpath == 'branches' or subpath == 'tags':
+                remote_dir = remote_dir[:-1]
+            break
+        remote_dir.append(subpath)
+
+    if len(remote_dir) > 0:
+        remote_dir = '/'.join(remote_dir[::-1])
+    else:
+        remote_dir = '.'
+
+    return remote_dir
 
 
 def get_layout_opts(repo):
@@ -99,15 +172,24 @@ def gittify_branch(repo, branch_name, obj, svn_server):
 
         if len(externals) > 0:
             print_msg('Gittifying externals...')
+            ext_to_write = []
             with chdir('..'):
                 for ext in externals:
-                    # FIXME: convert blocked externals revision to commit sha with git svn find-rev
+                    # should be true only for externals of picking_assistant
+                    if ext['location'].startswith('..'):
+                        continue
                     repo_name = extract_repo_name(ext['location'])
                     gittified_externals = gittify(repo_name, svn_server)
                     gittified.update(gittified_externals)
 
-            write_extfile(externals)
-            git('add', 'svn_externals')
+                    gittified_name = os.path.basename(repo_name)
+                    if gittified_name not in gittified_externals:
+                        print_msg('{} is a SVN external, however it has not been found!'.format(gittified_name))
+                        continue
+                    ext_to_write.append(ext)
+
+            write_extfile(ext_to_write)
+            git('add', 'git_externals.json')
             git('commit', '-m', 'gittify: create svn_externals file',
                 '--author="gittify <>"')
 
@@ -115,21 +197,18 @@ def gittify_branch(repo, branch_name, obj, svn_server):
 
 
 def gittify(repo, svn_server, basename_only=True, ignore_not_found=True):
-    # following to check
-    if repo[0] == '/':
-        repo = repo[1:]
-
     repo_name = repo
     if basename_only:
         repo_name = os.path.basename(repo)
 
+    git_repo = repo_name + GIT_EXT
     gittified = set([repo_name])
 
-    if os.path.exists(repo_name):
+    if os.path.exists(git_repo):
         print_msg('{} already gittified'.format(repo_name))
         return gittified
 
-    tmprepo = '{}.tmp'.format(repo_name)
+    gitsvn_repo = repo_name + GITSVN_EXT
 
     remote_repo = os.path.join(svn_server, repo)
     try:
@@ -142,19 +221,19 @@ def gittify(repo, svn_server, basename_only=True, ignore_not_found=True):
 
     is_std = len(layout_opts) == 3
 
-    if not os.path.exists(tmprepo):
+    if not os.path.exists(gitsvn_repo):
 
         # FIXME: handle authors file for mapping SVN users to Git users
-        args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, tmprepo]
+        args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, gitsvn_repo]
 
         header('Cloning {}'.format(remote_repo))
         print_msg('standard layout: {}'.format(is_std))
         print_msg(' '.join(args))
 
         git(*args)
-        cleanup(tmprepo, False, remote_repo)
+        cleanup(gitsvn_repo, False, remote_repo)
 
-        with chdir(tmprepo):
+        with chdir(gitsvn_repo):
             print_msg('Gittifying branches...')
             for branch in branches():
                 if not is_std:
@@ -183,17 +262,17 @@ def gittify(repo, svn_server, basename_only=True, ignore_not_found=True):
 
         # avoid cycles, because it could be created by a previous call
         # from an external
-        if not os.path.exists(repo_name):
+        if not os.path.exists(git_repo):
             print_msg('Cloning into final git repo')
-            git('clone', '--bare', tmprepo, repo_name)
-            with chdir(repo_name):
+            git('clone', '--bare', gitsvn_repo, git_repo)
+            with chdir(git_repo):
                 remote_rm('origin')
 
     return gittified
 
 
-def remove_tmp_repos():
-    for tmp_repo in glob.iglob('*.tmp'):
+def remove_gitsvn_repos():
+    for tmp_repo in glob.iglob('*' + GITSVN_EXT):
         shutil.rmtree(tmp_repo)
 
 
@@ -203,4 +282,4 @@ if __name__ == '__main__':
         repo = r[len(root) + 1:]
         gittify(repo, root)
 
-    remove_tmp_repos()
+    remove_gitsvn_repos()
