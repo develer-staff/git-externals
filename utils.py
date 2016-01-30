@@ -4,6 +4,7 @@ from __future__ import print_function, unicode_literals
 
 import subprocess
 import os
+import logging
 
 from contextlib import contextmanager
 
@@ -96,3 +97,19 @@ def header(msg):
 
 def print_msg(msg):
     print('  {}'.format(msg))
+
+
+class IndentedLoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, logger, indent_val=4):
+        super(IndentedLoggerAdapter, self).__init__(logger, {})
+        self.indent_level = 0
+        self.indent_val = 4
+
+    def process(self, msg, kwargs):
+        return (' ' * self.indent_level + msg, kwargs)
+
+    @contextmanager
+    def indent(self):
+        self.indent_level += self.indent_val
+        yield
+        self.indent_level -= self.indent_val
