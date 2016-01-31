@@ -25,7 +25,7 @@ except ImportError:
 from cleanup_repo import cleanup
 from utils import git, svn, chdir, checkout, SVNError, branches, tags, \
     IndentedLoggerAdapter
-from process_externals import unique_externals
+from process_externals import parsed_externals
 
 GITSVN_EXT = '.gitsvn'
 GIT_EXT = '.git'
@@ -40,7 +40,7 @@ def get_externals(repo):
 
     targets = ET.fromstring(data).findall('target')
 
-    return unique_externals(targets)
+    return list(parsed_externals(targets))
 
 BRANCH_RE = re.compile(r'branches/(.+)')
 TAG_RE = re.compile(r'tags/(.+)')
@@ -180,19 +180,18 @@ def gittify_branch(repo, branch_name, obj, svn_server, config):
                 ext_to_write = []
                 with chdir('..'):
                     for ext in externals:
-                        # should be true only for externals of picking_assistant
-                        if ext['location'].startswith('..'):
-                            continue
-                        repo_name = extract_repo_name(ext['location'],
-                                                      config['super_repos'])
-                        gittified_externals = gittify(repo_name, svn_server,
-                                                      config)
-                        gittified.update(gittified_externals)
+                        # assume no multiple .., so it's a reference to the current repo
+                        if not ext['location'].startswith('..'):
+                            repo_name = extract_repo_name(ext['location'],
+                                                          config['super_repos'])
+                            gittified_externals = gittify(repo_name, svn_server,
+                                                          config)
+                            gittified.update(gittified_externals)
 
-                        gittified_name = posixpath.basename(repo_name)
-                        if gittified_name not in gittified_externals:
-                            log.info('{} is a SVN external, however it has not been found!'.format(gittified_name))
-                            continue
+                            gittified_name = posixpath.basename(repo_name)
+                            if gittified_name not in gittified_externals:
+                                log.info('{} is a SVN external, however it has not been found!'.format(gittified_name))
+                                continue
                         ext_to_write.append(ext)
 
                 write_extfile(ext_to_write, config)
