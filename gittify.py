@@ -235,7 +235,7 @@ def gittify(repo, svn_server, config):
         log.info(' '.join(args))
 
         git(*args)
-        cleanup(gitsvn_repo, False, remote_repo)
+        cleanup(gitsvn_repo, False, remote_repo, log=log)
 
         with chdir(gitsvn_repo):
             log.info('Gittifying branches...')

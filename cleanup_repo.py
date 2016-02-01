@@ -4,7 +4,8 @@ import os.path
 import re
 import argparse
 
-from utils import svn, git, SVNError, checkout, chdir, print_msg
+from utils import svn, git, SVNError, checkout, chdir
+import logging
 
 TAGS_RE = re.compile('.+/tags/(.+)')
 
@@ -53,7 +54,11 @@ def get_removed_tags(repo):
     return set([t[:-1] for t in entries])
 
 
-def cleanup(repo, with_revbound=False, remote=None):
+def cleanup(repo, with_revbound=False, remote=None, log=None):
+    if log is None:
+        log = logging.getLogger(__name__)
+        log.setLevel(logging.INFO)
+
     with chdir(repo):
         if remote is not None:
             remote_branches = get_merged_branches(remote)
@@ -63,7 +68,7 @@ def cleanup(repo, with_revbound=False, remote=None):
 
         revbound_re = re.compile(r'.+@(\d+)')
 
-        print_msg('Cleaning up branches...')
+        log.info('Cleaning up branches...')
         for branch in branches:
             branch_name = name_of(branch)
 
@@ -76,20 +81,20 @@ def cleanup(repo, with_revbound=False, remote=None):
                 continue
 
             if not with_revbound and is_revbound:
-                print_msg('Skipping cleanup of {} because it is bound to rev {}'
-                          .format(branch_name, rev))
+                log.warning('Skipping cleanup of {} because it is bound to rev {}'
+                            .format(branch_name, rev))
                 continue
 
             if remote is not None and branch_name not in remote_branches:
-                print_msg('Skipping cleanup of {} because it has been deleted(maybe after a merge?)'
-                          .format(branch_name))
+                log.warning('Skipping cleanup of {} because it has been deleted(maybe after a merge?)'
+                            .format(branch_name))
                 continue
 
-            print_msg('Cleaning up branch {}'.format(branch_name))
+            log.info('Cleaning up branch {}'.format(branch_name))
             with checkout(branch_name, branch):
                 pass
 
-        print_msg('Cleaning up tags')
+        log.info('Cleaning up tags')
         for tag in tags:
             match = revbound_re.match(tag)
             is_revbound = match is not None
@@ -98,16 +103,16 @@ def cleanup(repo, with_revbound=False, remote=None):
             tag_name = name_of(tag)
 
             if remote is not None and tag_name not in remote_tags:
-                print_msg('Skipping tag {} because it has been deleted'
-                          .format(tag))
+                log.warning('Skipping tag {} because it has been deleted'
+                            .format(tag))
                 continue
 
             if not with_revbound and is_revbound:
-                print_msg('Skipping tag {} because it is bound to rev {}'
-                          .format(tag, rev))
+                log.warning('Skipping tag {} because it is bound to rev {}'
+                            .format(tag, rev))
                 continue
 
-            print_msg('Cleaning up tag {}'.format(tag))
+            log.info('Cleaning up tag {}'.format(tag))
             branchtag_to_tag(tag_name, tag)
 
 
