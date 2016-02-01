@@ -247,8 +247,11 @@ def gittify(repo, config):
     is_std = len(layout_opts) == 3
 
     if not os.path.exists(gitsvn_repo):
-        # FIXME: handle authors file for mapping SVN users to Git users
-        args = ['svn', 'clone', '--prefix=origin/'] + layout_opts + [remote_repo, gitsvn_repo]
+        authors_file_opt = []
+        if config['authors_file'] is not None:
+            authors_file_opt = ['-A', config['authors_file']]
+        args = ['svn', 'clone', '--prefix=origin/'] + authors_file_opt + \
+                layout_opts + [remote_repo, gitsvn_repo]
 
         log.info('Cloning {}'.format(remote_repo))
         log.info('standard layout: {}'.format(is_std))
@@ -312,6 +315,8 @@ def parse_args():
     parser.add_argument('--super-repos', type=set, nargs='+',
                         default=set(['packages/', 'vendor/']),
                         help='A SVN super repo is not a real repo but it is a container of repos')
+    parser.add_argument('-A', '--authors-file', default=None,
+                        help='Authors file to map svn users to git')
 
     args = parser.parse_args()
 
@@ -321,6 +326,7 @@ def parse_args():
         'ignore_not_found': not args.crash_on_404,
         'rm_gitsvn': args.rm_gitsvn,
         'super_repos': args.super_repos,
+        'authors_file': args.authors_file,
     }
 
 
