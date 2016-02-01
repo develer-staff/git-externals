@@ -65,11 +65,15 @@ def svnext_to_gitext(ext, config):
 
     complete_ext_repo = extract_repo_name(ext['location'], config['super_repos'])
     ext_repo = posixpath.basename(complete_ext_repo)
-    if ext_repo.startswith('..'):
+    if ext_repo.startswith('.'):
+        source = posixpath.join(remote_dir, ext['location'])
+
         # assume for simplicity it's the current repo(e.g. multiple .. not allowed)
         ext_repo = repo_name
+    else:
+        source = extract_repo_path(ext['location'], ext_repo)
 
-    gitext['source'] = extract_repo_path(ext['location'], ext_repo)
+    gitext['source'] = source
     gitext['repo'] = posixpath.join(config['git_server'], ext_repo)
 
     gitext['branch'] = 'master'
@@ -96,10 +100,17 @@ def svnext_to_gitext(ext, config):
 
 
 def write_extfile(exts, config):
-    exts = [svnext_to_gitext(e, config) for e in exts]
+    gitexts = []
+    for ext in exts:
+        try:
+            gitext = svnext_to_gitext(ext, config)
+            gitexts.append(gitext)
+        except SVNError:
+            if not config['ignore_not_found']:
+                raise
 
     with open(config['externals_filename'], 'wt') as fd:
-        json.dump(exts, fd, indent=4)
+        json.dump(gitexts, fd, indent=4)
 
 
 def extract_repo_name(remote_name, super_repos):
