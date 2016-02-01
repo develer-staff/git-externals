@@ -197,7 +197,7 @@ def gittify_branch(repo, branch_name, obj, svn_server, config):
                 write_extfile(ext_to_write, config)
                 git('add', config['externals_filename'])
                 git('commit', '-m',
-                    'gittify: create {} file'.format(config['git_server']),
+                    'gittify: create {} file'.format(config['externals_filename']),
                     '--author="gittify <>"')
 
     return gittified
