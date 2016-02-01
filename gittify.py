@@ -46,6 +46,13 @@ BRANCH_RE = re.compile(r'branches/(.+)')
 TAG_RE = re.compile(r'tags/(.+)')
 
 
+def last_changed_rev_from(rev, repo):
+    data = svn('info', '--xml', '-' + rev, repo)
+
+    rev = ET.fromstring(data).find('./entry/commit').get('revision')
+    return 'r' + rev
+
+
 def svnext_to_gitext(ext, config):
     gitext = {}
 
@@ -56,8 +63,8 @@ def svnext_to_gitext(ext, config):
 
     gitext['destination'] = posixpath.join(remote_dir, ext['path'])
 
-    ext_repo = posixpath.basename(extract_repo_name(ext['location'],
-                                                    config['super_repos']))
+    complete_ext_repo = extract_repo_name(ext['location'], config['super_repos'])
+    ext_repo = posixpath.basename(complete_ext_repo)
     if ext_repo.startswith('..'):
         # assume for simplicity it's the current repo(e.g. multiple .. not allowed)
         ext_repo = repo_name
@@ -75,8 +82,11 @@ def svnext_to_gitext(ext, config):
         # svn rev -> git sha
         rev = 'r' + ext['rev'] if ext['rev'][0] != 'r' else ext['rev']
 
+        svn_repo = posixpath.join(config['svn_server'], complete_ext_repo)
+        changed_rev = last_changed_rev_from(rev, svn_repo)
+
         with chdir(os.path.join('..', ext_repo + GITSVN_EXT)):
-            gitext['ref'] = git('svn', 'find-rev', rev).strip()
+            gitext['ref'] = git('svn', 'find-rev', changed_rev).strip()
     else:
         match = TAG_RE.match(ext['location'])
         if match is not None:
@@ -167,12 +177,12 @@ def remote_rm(remote):
         git('remote', 'rm', remote)
 
 
-def gittify_branch(repo, branch_name, obj, svn_server, config):
+def gittify_branch(repo, branch_name, obj, config):
     log.info('Gittifying branch {}'.format(branch_name))
     gittified = set()
 
     with checkout(branch_name, obj):
-        externals = get_externals(posixpath.join(svn_server, repo))
+        externals = get_externals(posixpath.join(config['svn_server'], repo))
 
         if len(externals) > 0:
             log.info('Gittifying externals...')
@@ -184,8 +194,7 @@ def gittify_branch(repo, branch_name, obj, svn_server, config):
                         if not ext['location'].startswith('..'):
                             repo_name = extract_repo_name(ext['location'],
                                                           config['super_repos'])
-                            gittified_externals = gittify(repo_name, svn_server,
-                                                          config)
+                            gittified_externals = gittify(repo_name, config)
                             gittified.update(gittified_externals)
 
                             gittified_name = posixpath.basename(repo_name)
@@ -203,7 +212,7 @@ def gittify_branch(repo, branch_name, obj, svn_server, config):
     return gittified
 
 
-def gittify(repo, svn_server, config):
+def gittify(repo, config):
     repo_name = posixpath.basename(repo)
 
     git_repo = repo_name + GIT_EXT
@@ -215,7 +224,7 @@ def gittify(repo, svn_server, config):
 
     gitsvn_repo = repo_name + GITSVN_EXT
 
-    remote_repo = posixpath.join(svn_server, repo)
+    remote_repo = posixpath.join(config['svn_server'], repo)
     try:
         layout_opts = get_layout_opts(remote_repo)
     except SVNError as err:
@@ -248,14 +257,14 @@ def gittify(repo, svn_server, config):
                     subrepo = posixpath.join(repo, 'trunk')
 
                 external_gittified = gittify_branch(subrepo, branch, None,
-                                                    svn_server, config)
+                                                    config)
                 gittified.update(external_gittified)
 
             log.info('Gittifying tags...')
             for tag in tags():
                 subrepo = posixpath.join(repo, 'tags', tag)
                 external_gittified = gittify_branch(subrepo, tag, tag,
-                                                    svn_server, config)
+                                                    config)
 
                 if len(external_gittified) > 0:
                     gittified.update(external_gittified)
@@ -310,7 +319,8 @@ def main():
     for r in repos:
         root = extract_repo_root(r)
         repo = r[len(root) + 1:]
-        gittify(repo, root, config)
+        config['svn_server'] = root
+        gittify(repo, config)
 
     if config['rm_gitsvn']:
         remove_gitsvn_repos()
