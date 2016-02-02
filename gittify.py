@@ -99,6 +99,27 @@ def svnext_to_gitext(ext, config):
     return gitext
 
 
+def group_gitexternals(exts):
+    ret = {}
+    for ext in exts:
+        repo = ext['repo']
+        src = ext['source']
+        dst = ext['destination']
+
+        if repo not in ret:
+            ret[repo] = {
+                'branch': ext['branch'],
+                'ref': ext['ref'],
+                'targets': {src: dst}
+            }
+        else:
+            if ret[repo]['branch'] != ext['branch'] or ret[repo]['ref'] != ext['ref']:
+                log.critical('Branch or ref mismatch across different dirs of git ext')
+            ret[repo]['targets'][src] = dst
+
+    return ret
+
+
 def write_extfile(exts, config):
     gitexts = []
     for ext in exts:
@@ -108,7 +129,7 @@ def write_extfile(exts, config):
         except SVNError:
             if not config['ignore_not_found']:
                 raise
-
+    gitexts = group_gitexternals(gitexts)
     with open(config['externals_filename'], 'wt') as fd:
         json.dump(gitexts, fd, indent=4)
 
