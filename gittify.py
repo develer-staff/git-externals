@@ -74,7 +74,7 @@ def svnext_to_gitext(ext, config):
         source = extract_repo_path(ext['location'], ext_repo)
 
     gitext['source'] = source
-    gitext['repo'] = posixpath.join(config['git_server'], ext_repo)
+    gitext['repo'] = posixpath.join(config['git_server'], ext_repo) + GIT_EXT
 
     gitext['branch'] = 'master'
     match = BRANCH_RE.match(ext['location'])
