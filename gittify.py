@@ -184,23 +184,27 @@ def get_layout_opts(repo):
     entries = set(svn('ls', repo).splitlines())
 
     opts = []
+    has_trunk = has_branches = has_tags = False
 
     if 'trunk/' in entries:
         opts.append(
             '--trunk=trunk'
         )
+        has_trunk = True
 
     if 'branches/' in entries:
         opts.append(
             '--branches=branches'
         )
+        has_branches = True
 
     if 'tags/' in entries:
         opts.append(
             '--tags=tags'
         )
+        has_tags = True
 
-    return opts
+    return opts, has_trunk, has_branches, has_tags
 
 
 def remote_rm(remote):
@@ -264,14 +268,12 @@ def gittify(repo, config):
 
     remote_repo = posixpath.join(config['svn_server'], repo)
     try:
-        layout_opts = get_layout_opts(remote_repo)
+        layout_opts, has_trunk, has_branches, _ = get_layout_opts(remote_repo)
     except SVNError as err:
         if config['ignore_not_found']:
             log.info('Ignoring error {}'.format(err))
             return set()
         raise
-
-    is_std = len(layout_opts) == 3
 
     if not os.path.exists(gitsvn_repo):
         authors_file_opt = []
@@ -281,7 +283,7 @@ def gittify(repo, config):
                 layout_opts + [remote_repo, gitsvn_repo]
 
         log.info('Cloning {}'.format(remote_repo))
-        log.info('standard layout: {}'.format(is_std))
+        log.info('standard layout: {}'.format(len(layout_opts) == 3))
         log.info(' '.join(args))
 
         git(*args)
@@ -290,12 +292,12 @@ def gittify(repo, config):
         with chdir(gitsvn_repo):
             log.info('Gittifying branches...')
             for branch in branches():
-                if not is_std:
-                    subrepo = repo
-                elif branch != 'master':
+                if branch != 'master' and has_branches:
                     subrepo = posixpath.join(repo, 'branches', branch)
-                else:
+                elif branch == 'master' and has_trunk:
                     subrepo = posixpath.join(repo, 'trunk')
+                else:
+                    subrepo = repo
 
                 external_gittified = gittify_branch(subrepo, branch, None,
                                                     config)
