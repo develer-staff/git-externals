@@ -101,6 +101,7 @@ def svnext_to_gitext(ext, config):
 
 def group_gitexternals(exts):
     ret = {}
+    mismatched_refs = {}
     for ext in exts:
         repo = ext['repo']
         src = ext['source']
@@ -114,10 +115,12 @@ def group_gitexternals(exts):
             }
         else:
             if ret[repo]['branch'] != ext['branch'] or ret[repo]['ref'] != ext['ref']:
+                mismatched_refs.setdefault(repo, [ret[repo]]).append(ext)
                 log.critical('Branch or ref mismatch across different dirs of git ext')
+
             ret[repo]['targets'][src] = dst
 
-    return ret
+    return ret, mismatched_refs
 
 
 def write_extfile(exts, config):
@@ -129,9 +132,14 @@ def write_extfile(exts, config):
         except SVNError:
             if not config['ignore_not_found']:
                 raise
-    gitexts = group_gitexternals(gitexts)
+    gitexts, mismatched = group_gitexternals(gitexts)
+
     with open(config['externals_filename'], 'wt') as fd:
         json.dump(gitexts, fd, indent=4)
+
+    if len(mismatched) > 0:
+        with open(config['mismatched_refs_filename'], 'wt') as fp:
+            json.dump(mismatched, fp, indent=4)
 
 
 def extract_repo_name(remote_name, super_repos):
@@ -248,6 +256,8 @@ def gittify_branch(repo, branch_name, obj, config):
 
                 write_extfile(ext_to_write, config)
                 git('add', config['externals_filename'])
+                if os.path.exists(config['mismatched_refs_filename']):
+                    git('add', config['mismatched_refs_filename'])
                 git('commit', '-m',
                     'gittify: create {} file'.format(config['externals_filename']),
                     '--author="gittify <>"')
@@ -338,6 +348,8 @@ def parse_args():
                         help='Url to use as base url for the git server')
     parser.add_argument('--filename', default='git_externals.json',
                         help='Filename of the json dump of the svn externals')
+    parser.add_argument('--mismatched-filename', default='mismatched_ext.json',
+                        help='Filename of the json dump of the svn externals those point to different revisions')
     parser.add_argument('--crash-on-404', default=False, action='store_true',
                         help='Give error if an external has not been found')
     parser.add_argument('--rm-gitsvn', default=False, action='store_true',
@@ -353,6 +365,7 @@ def parse_args():
     return args.repos, {
         'git_server': args.git_server,
         'externals_filename': args.filename,
+        'mismatched_refs_filename': args.mismatched_filename,
         'ignore_not_found': not args.crash_on_404,
         'rm_gitsvn': args.rm_gitsvn,
         'super_repos': args.super_repos,
