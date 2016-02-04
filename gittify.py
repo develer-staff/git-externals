@@ -222,7 +222,8 @@ def gittify_branch(repo, branch_name, obj, config):
         with open('.gitignore', 'wt') as fp:
             fp.write(git_ignore)
         git('add', '.gitignore')
-        git('commit', '-m', 'gittify: convert svn:ignore to .gitignore')
+        git('commit', '-m', 'gittify: convert svn:ignore to .gitignore',
+            '--author="gittify <>"')
 
         externals = get_externals(posixpath.join(config['svn_server'], repo))
 
