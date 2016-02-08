@@ -23,8 +23,8 @@ except ImportError:
     from xml.etree import ElementTree as ET
 
 from cleanup_repo import cleanup
-from utils import git, svn, chdir, checkout, SVNError, branches, tags, \
-    IndentedLoggerAdapter
+from utils import git, svn, chdir, checkout, current_branch, SVNError, branches, \
+    tags, IndentedLoggerAdapter
 from process_externals import parsed_externals
 
 GITSVN_EXT = '.gitsvn'
@@ -42,8 +42,10 @@ def get_externals(repo):
 
     return list(parsed_externals(targets))
 
-BRANCH_RE = re.compile(r'branches/(.+)')
-TAG_RE = re.compile(r'tags/(.+)')
+
+def svn_path_type(repo):
+    data = svn('info', '--xml', repo)
+    return ET.fromstring(data).find('./entry').get('kind')
 
 
 def last_changed_rev_from(rev, repo):
@@ -51,6 +53,19 @@ def last_changed_rev_from(rev, repo):
 
     rev = ET.fromstring(data).find('./entry/commit').get('revision')
     return 'r' + rev
+
+
+def svnrev_to_gitsha(rev):
+    # brute force :(
+    gitsvn_id_re = re.compile(r'(\w+) .*git-svn-id: [^@]+@{}'.format(rev[1:]), re.S)
+
+    data = git('log', '--format="%H %b"')
+
+    return gitsvn_id_re.search(data).group(1)
+
+
+BRANCH_RE = re.compile(r'branches/([^/]+)')
+TAG_RE = re.compile(r'tags/([^/]+)')
 
 
 def svnext_to_gitext(ext, config):
@@ -63,38 +78,48 @@ def svnext_to_gitext(ext, config):
 
     gitext['destination'] = posixpath.join(remote_dir, ext['path'])
 
+    loc = ext['location'] if ext['location'][0] != '/' else ext['location'][1:]
+
     complete_ext_repo = extract_repo_name(ext['location'], config['super_repos'])
     ext_repo = posixpath.basename(complete_ext_repo)
     if ext_repo.startswith('.'):
         source = posixpath.join(remote_dir, ext['location'])
+        gitext['source'] = source
 
         # assume for simplicity it's the current repo(e.g. multiple .. not allowed)
         ext_repo = repo_name
     else:
         source = extract_repo_path(ext['location'], ext_repo)
 
-    gitext['source'] = source
+        is_dir = svn_path_type(posixpath.join(config['svn_server'], loc)) == 'dir'
+        gitext['source'] = source + '/' if is_dir else source
+
     gitext['repo'] = posixpath.join(config['git_server'], ext_repo) + GIT_EXT
 
-    gitext['branch'] = 'master'
-    match = BRANCH_RE.match(ext['location'])
+    match = TAG_RE.search(ext['location'])
     if match is not None:
-        gitext['branch'] = match.group(1).split('/')[0]
+        gitext['tag'] = match.group(1)
 
-    gitext['ref'] = None
-    if ext['rev'] is not None:
-        # svn rev -> git sha
-        rev = 'r' + ext['rev'] if ext['rev'][0] != 'r' else ext['rev']
-
-        svn_repo = posixpath.join(config['svn_server'], complete_ext_repo)
-        changed_rev = last_changed_rev_from(rev, svn_repo)
-
-        with chdir(os.path.join('..', ext_repo + GITSVN_EXT)):
-            gitext['ref'] = git('svn', 'find-rev', changed_rev).strip()
     else:
-        match = TAG_RE.match(ext['location'])
+        gitext['branch'] = 'master'
+        match = BRANCH_RE.search(ext['location'])
         if match is not None:
-            gitext['ref'] = match.group(1)
+            gitext['branch'] = match.group(1).split('/')[0]
+
+        gitext['ref'] = None
+        if ext['rev'] is not None:
+            # svn rev -> git sha
+            rev = 'r' + ext['rev'] if ext['rev'][0] != 'r' else ext['rev']
+
+            svn_ext_repo = loc[:-len(source)] if source != '.' else loc
+            svn_repo = posixpath.join(config['svn_server'], svn_ext_repo)
+            changed_rev = last_changed_rev_from(rev, svn_repo)
+
+            with chdir(os.path.join('..', ext_repo + GITSVN_EXT)):
+                with checkout(gitext['branch'], back_to=current_branch()):
+                    gitext['ref'] = git('svn', 'find-rev', changed_rev).strip()
+                    if gitext['ref'] == '':
+                        gitext['ref'] = svnrev_to_gitsha(changed_rev)
 
     return gitext
 
@@ -108,13 +133,18 @@ def group_gitexternals(exts):
         dst = ext['destination']
 
         if repo not in ret:
-            ret[repo] = {
-                'branch': ext['branch'],
-                'ref': ext['ref'],
-                'targets': {src: dst}
-            }
+            ret[repo] = {'targets' : {src: dst}}
+            if 'branch' in ext:
+                ret[repo]['branch'] = ext['branch']
+                ret[repo]['ref'] = ext['ref']
+            else:
+                ret[repo]['tag'] = ext['tag']
         else:
-            if ret[repo]['branch'] != ext['branch'] or ret[repo]['ref'] != ext['ref']:
+            def equal(lhs, rhs, field):
+                return lhs.get(field, None) == rhs.get(field, None)
+            if not equal(ret[repo], ext, 'branch') or \
+		not equal(ret[repo], ext, 'ref') or \
+		not equal(ret[repo], ext, 'tag'):
                 mismatched_refs.setdefault(repo, [ret[repo]]).append(ext)
                 log.critical('Branch or ref mismatch across different dirs of git ext')
 
@@ -171,17 +201,31 @@ def extract_repo_path(path, repo_name):
     if path[0] == '/':
         path = path[1:]
 
-    remote_dir = []
-    for subpath in path.split('/')[::-1]:
-        if subpath in set(['trunk', 'branches', 'tags', repo_name]):
-            # remove tag/branch name
-            if subpath == 'branches' or subpath == 'tags':
-                remote_dir = remote_dir[:-1]
-            break
-        remote_dir.append(subpath)
+    remote_dir = path.split('/')
+
+    def index(x):
+        try:
+            return remote_dir.index(x)
+        except ValueError:
+            return -1
+
+    i = index('trunk')
+    if i >= 0:
+        remote_dir = remote_dir[i+1:]
+    else:
+        i = index('branches')
+        if i >= 0:
+            remote_dir = remote_dir[i+2:]
+        else:
+            i = index('tags')
+            if i >= 0:
+                remote_dir = remote_dir[i+2:]
+            else:
+                i = index(repo_name)
+                remote_dir = remote_dir[i+1:]
 
     if len(remote_dir) > 0:
-        remote_dir = '/'.join(remote_dir[::-1])
+        remote_dir = '/'.join(remote_dir)
     else:
         remote_dir = '.'
 

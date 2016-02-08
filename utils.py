@@ -53,6 +53,10 @@ def git(*args):
     return output
 
 
+def current_branch():
+    return git('name-rev', '--name-only', 'HEAD').strip()
+
+
 def branches():
     refs = git('for-each-ref', 'refs/heads', "--format=%(refname)")
     return [line.split('/')[2] for line in refs.splitlines()]
@@ -64,7 +68,7 @@ def tags():
 
 
 @contextmanager
-def checkout(branch, remote=None):
+def checkout(branch, remote=None, back_to='master'):
     brs = set(branches())
 
     # if remote is not None -> create local branch from remote
@@ -73,7 +77,7 @@ def checkout(branch, remote=None):
     else:
         git('checkout', branch)
     yield
-    git('checkout', 'master')
+    git('checkout', back_to)
 
 
 @contextmanager
