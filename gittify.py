@@ -133,7 +133,7 @@ def group_gitexternals(exts):
         dst = ext['destination']
 
         if repo not in ret:
-            ret[repo] = {'targets' : {src: dst}}
+            ret[repo] = {'targets' : {src: [dst]}}
             if 'branch' in ext:
                 ret[repo]['branch'] = ext['branch']
                 ret[repo]['ref'] = ext['ref']
@@ -142,13 +142,15 @@ def group_gitexternals(exts):
         else:
             def equal(lhs, rhs, field):
                 return lhs.get(field, None) == rhs.get(field, None)
+
             if not equal(ret[repo], ext, 'branch') or \
 		not equal(ret[repo], ext, 'ref') or \
 		not equal(ret[repo], ext, 'tag'):
                 mismatched_refs.setdefault(repo, [ret[repo]]).append(ext)
                 log.critical('Branch or ref mismatch across different dirs of git ext')
 
-            ret[repo]['targets'][src] = dst
+            if dst not in ret[repo]['targets'].setdefault(src, []):
+                ret[repo]['targets'][src].append(dst)
 
     return ret, mismatched_refs
 
