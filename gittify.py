@@ -89,7 +89,7 @@ def svnext_to_gitext(ext, config):
         # assume for simplicity it's the current repo(e.g. multiple .. not allowed)
         ext_repo = repo_name
     else:
-        source = extract_repo_path(ext['location'], ext_repo)
+        source = extract_repo_path(ext['location'], complete_ext_repo)
 
         is_dir = svn_path_type(posixpath.join(config['svn_server'], loc)) == 'dir'
         gitext['source'] = source + '/' if is_dir else source
@@ -133,7 +133,7 @@ def group_gitexternals(exts):
         dst = ext['destination']
 
         if repo not in ret:
-            ret[repo] = {'targets' : {src: [dst]}}
+            ret[repo] = {'targets': {src: [dst]}}
             if 'branch' in ext:
                 ret[repo]['branch'] = ext['branch']
                 ret[repo]['ref'] = ext['ref']
@@ -144,8 +144,8 @@ def group_gitexternals(exts):
                 return lhs.get(field, None) == rhs.get(field, None)
 
             if not equal(ret[repo], ext, 'branch') or \
-		not equal(ret[repo], ext, 'ref') or \
-		not equal(ret[repo], ext, 'tag'):
+                    not equal(ret[repo], ext, 'ref') or \
+                    not equal(ret[repo], ext, 'tag'):
                 mismatched_refs.setdefault(repo, [ret[repo]]).append(ext)
                 log.critical('Branch or ref mismatch across different dirs of git ext')
 
@@ -203,28 +203,30 @@ def extract_repo_path(path, repo_name):
     if path[0] == '/':
         path = path[1:]
 
+    path = path[len(repo_name)+1:]
+
+    if len(path) == 0:
+        return '.'
+
     remote_dir = path.split('/')
 
     def index(x):
         try:
             return remote_dir.index(x)
         except ValueError:
-            return -1
+            return len(remote_dir)
 
-    i = index('trunk')
-    if i >= 0:
-        remote_dir = remote_dir[i+1:]
-    else:
-        i = index('branches')
-        if i >= 0:
-            remote_dir = remote_dir[i+2:]
+    trunk_idx = index('trunk')
+    branches_idx = index('branches')
+    tags_idx = index('tags')
+
+    first = min(trunk_idx, branches_idx, tags_idx)
+
+    if first < len(remote_dir):
+        if first == trunk_idx:
+            remote_dir = remote_dir[first+1:]
         else:
-            i = index('tags')
-            if i >= 0:
-                remote_dir = remote_dir[i+2:]
-            else:
-                i = index(repo_name)
-                remote_dir = remote_dir[i+1:]
+            remote_dir = remote_dir[first+2:]
 
     if len(remote_dir) > 0:
         remote_dir = '/'.join(remote_dir)
