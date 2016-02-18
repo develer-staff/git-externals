@@ -167,11 +167,11 @@ def write_extfile(exts, config):
     gitexts, mismatched = group_gitexternals(gitexts)
 
     with open(config['externals_filename'], 'wt') as fd:
-        json.dump(gitexts, fd, indent=4)
+        json.dump(gitexts, fd, indent=4, sort_keys=True)
 
     if len(mismatched) > 0:
         with open(config['mismatched_refs_filename'], 'wt') as fp:
-            json.dump(mismatched, fp, indent=4)
+            json.dump(mismatched, fp, indent=4, sort_keys=True)
 
 
 def extract_repo_name(remote_name, super_repos):
