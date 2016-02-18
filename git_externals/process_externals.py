@@ -12,7 +12,7 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from utils import header
+from .utils import header
 from argparse import ArgumentParser, FileType
 
 RE_REVISION = re.compile(r'(-r\s*|@)(\d+)')

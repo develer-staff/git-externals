@@ -22,10 +22,10 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from cleanup_repo import cleanup
-from utils import git, svn, chdir, checkout, current_branch, SVNError, branches, \
+from .cleanup_repo import cleanup
+from .utils import git, svn, chdir, checkout, current_branch, SVNError, branches, \
     tags, IndentedLoggerAdapter
-from process_externals import parsed_externals
+from .process_externals import parsed_externals
 
 GITSVN_EXT = '.gitsvn'
 GIT_EXT = '.git'

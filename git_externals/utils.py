@@ -4,6 +4,7 @@ from __future__ import print_function, unicode_literals
 
 import subprocess
 import os
+import sys
 import logging
 
 from contextlib import contextmanager
@@ -32,8 +33,10 @@ class SVNError(ProgError):
 
 
 def svn(*args):
-    p = subprocess.Popen(['svn'] + list(args), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, universal_newlines=True)
+    p = subprocess.Popen(['svn'] + list(args),
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
+                         universal_newlines=True)
     output, err = p.communicate()
 
     if p.returncode != 0:
@@ -43,8 +46,10 @@ def svn(*args):
 
 
 def git(*args):
-    p = subprocess.Popen(['git'] + list(args), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, universal_newlines=True)
+    p = subprocess.Popen(['git'] + list(args),
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
+                         universal_newlines=True)
     output, err = p.communicate()
 
     if p.returncode != 0:
@@ -90,6 +95,12 @@ def chdir(path):
     finally:
         os.chdir(cwd)
 
+
+def mkdir_p(path):
+    if path != '' and not os.path.exists(path):
+        os.makedirs(path)
+
+
 def header(msg):
     banner = '=' * 78
 
@@ -101,6 +112,29 @@ def header(msg):
 
 def print_msg(msg):
     print('  {}'.format(msg))
+
+
+if not sys.platform.startswith('win32'):
+    link = os.symlink
+    rm_link = os.remove
+
+# following works but it requires admin privileges
+else:
+
+    def link(src, dst):
+        import ctypes
+        csl = ctypes.windll.kernel32.CreateSymbolicLinkW
+        csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
+        csl.restype = ctypes.c_ubyte
+        flags = 1 if os.path.isdir(src) else 0
+        if csl(dst, src, flags) == 0:
+            raise ctypes.WinError()
+
+    def rm_link(path):
+        if os.path.isfile(path):
+            os.remove(path)
+        else:
+            os.rmdir(path)
 
 
 class IndentedLoggerAdapter(logging.LoggerAdapter):

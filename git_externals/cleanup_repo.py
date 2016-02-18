@@ -4,7 +4,7 @@ import os.path
 import re
 import argparse
 
-from utils import svn, git, SVNError, checkout, chdir
+from .utils import svn, git, SVNError, checkout, chdir
 import logging
 
 TAGS_RE = re.compile('.+/tags/(.+)')
