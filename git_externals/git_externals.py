@@ -102,14 +102,27 @@ def untrack(paths):
 
 @click.group(invoke_without_command=True)
 @click.version_option(__version__)
-@click.option('--with-color/--no-color', default=True)
-@click.option('--with-hooks/--no-hooks', default=True)
+@click.option('--with-color/--no-color',
+              default=True,
+              help='Enable/disable colored output')
+@click.option(
+    '--with-hooks/--no-hooks',
+    default=True,
+    help=
+    'Install post-checkout hook used to automatically update the working copy')
 @click.pass_context
 def cli(ctx, with_color, with_hooks):
-    """Utility to manage git externals"""
+    """Utility to manage git externals, meant to be used as a drop-in replacement to svn externals
+
+    This script works cloning externals found in the `git_externals.json` file into `.git/externals` and
+    then it uses symlinks to create the wanted directory layout.
+    """
 
     if ctx.invoked_subcommand != 'add' and not os.path.exists(FILENAME):
         error("Unable to find", FILENAME, exitcode=1)
+
+    if with_hooks:
+        install_hooks()
 
     if not os.path.exists(DEFAULT_DIR):
         if ctx.invoked_subcommand not in set(['update', 'add']):
@@ -118,15 +131,14 @@ def cli(ctx, with_color, with_hooks):
         if with_color:
             enable_colored_output()
 
-        if with_hooks:
-            install_hooks()
-
         if ctx.invoked_subcommand is None:
             gitext_st(())
 
 
 @cli.command('update')
 def gitext_update():
+    """Update the working copy cloning externals if needed and create the desired layout using symlinks
+    """
     gitext_up()
 
 
@@ -188,8 +200,12 @@ def gitext_up():
 
 @cli.command('status')
 @click.argument('external', nargs=-1)
-@click.option('--porcelain', is_flag=True)
+@click.option(
+    '--porcelain',
+    is_flag=True,
+    help='Print output using the porcelain format, useful mostly for scripts')
 def gitext_st(external, porcelain):
+    """Call git status on the given externals"""
     for _ in iter_externals(external):
         click.echo(git('status', '--porcelain' if porcelain else ''))
 
@@ -197,29 +213,46 @@ def gitext_st(external, porcelain):
 @cli.command('diff')
 @click.argument('external', nargs=-1)
 def gitext_diff(external):
+    """Call git status on the given externals"""
     for _ in iter_externals(external):
         click.echo(git('diff'))
 
 
 @cli.command('list')
 def gitext_ls():
+    """Print just a list of all externals used"""
     for entry in iter_externals([], verbose=False):
         info(entry)
 
 
 @cli.command('add')
-@click.argument('external')
-@click.argument('src')
-@click.argument('dst')
-@click.option('--branch', '-b', default=None)
-@click.option('--tag', '-t', default=None)
-@click.option('--ref', '-r', default=None)
+@click.argument('external',
+                metavar='URL')
+@click.argument('src', metavar='PATH')
+@click.argument('dst', metavar='PATH')
+@click.option('--branch', '-b', default=None, help='Checkout the given branch')
+@click.option('--tag', '-t', default=None, help='Checkout the given tag')
+@click.option(
+    '--ref',
+    '-r',
+    default=None,
+    help='Checkout the given commit sha, it requires that a branch is given')
 def gitext_add(external, src, dst, branch, tag, ref):
+    """Add a git external to the current repo.
+
+    Be sure to add '/' to `src` if it's a directory!
+    It's possible to add multiple `dst` to the same `src`, however you cannot mix different branches, tags or refs
+    for the same external.
+
+    It's safe to use this command to add `src` to an already present external, as well as adding
+    `dst` to an already present `src`.
+
+    It requires one of --branch or --tag.
+    """
     git_externals = load_gitexts()
 
     if branch is None and tag is None:
-        click.secho('Please specifiy at least a branch or a tag', fg='red')
-        sys.exit(3)
+        error('Please specifiy at least a branch or a tag', exitcode=3)
 
     if external not in git_externals:
         git_externals[external] = {'targets': {src: [dst]}}
@@ -232,21 +265,20 @@ def gitext_add(external, src, dst, branch, tag, ref):
     else:
         if branch is not None:
             if 'branch' not in git_externals[external]:
-                click.secho(
+                error(
                     '{} is bound to tag {}, cannot set it to branch {}'.format(
-                        external, git_externals[external]['tag'], branch))
-                sys.exit(4)
+                        external, git_externals[external]['tag'], branch),
+                    exitcode=4)
 
             if ref != git_externals[external]['ref']:
-                click.secho(
-                    '{} is bound to ref {}, cannot set it to ref {}'.format(
-                        external, git_externals[external]['ref'], ref))
-                sys.exit(4)
+                error('{} is bound to ref {}, cannot set it to ref {}'.format(
+                    external, git_externals[external]['ref'], ref),
+                      exitcode=4)
+
         elif 'tag' not in git_externals[external]:
-            click.secho(
-                '{} is bound to branch {}, cannot set it to tag {}'.format(
-                    external, git_externals[external]['branch'], tag))
-            sys.exit(4)
+            error('{} is bound to branch {}, cannot set it to tag {}'.format(
+                external, git_externals[external]['branch'], tag),
+                  exitcode=4)
 
         if dst not in git_externals[external]['targets'].setdefault(src, []):
             git_externals[external]['targets'][src].append(dst)
@@ -255,8 +287,9 @@ def gitext_add(external, src, dst, branch, tag, ref):
 
 
 @cli.command('remove')
-@click.argument('external', nargs=-1)
+@click.argument('external', nargs=-1, metavar='URL')
 def gitext_remove(external):
+    """Remove the externals at the given repository URLs """
     git_externals = load_gitexts()
 
     for ext in external:
@@ -269,6 +302,7 @@ def gitext_remove(external):
 @cli.command('info')
 @click.argument('external', nargs=-1)
 def gitext_info(external):
+    """Print some info about the externals."""
     external = set(external)
     git_externals = load_gitexts()
 
@@ -313,8 +347,9 @@ def install_hooks():
     hook_filename = os.path.join('.git', 'hooks', 'post-checkout')
     with open(hook_filename, 'wt') as fp:
         fp.write('#!/bin/sh\n')
-        fp.write('# see http://article.gmane.org/gmane.comp.version-control.git/281960')
-        fp.write('unset GIT_WORK_TREE')
+        fp.write(
+            '# see http://article.gmane.org/gmane.comp.version-control.git/281960\n')
+        fp.write('unset GIT_WORK_TREE\n')
         fp.write('git externals update')
     os.chmod(hook_filename, 0o755)
 
