@@ -61,6 +61,7 @@ def sparse_checkout(repo_name, repo, dirs, branch):
         git('config', 'core.sparsecheckout', 'true')
 
         with open(os.path.join('.git', 'info', 'sparse-checkout'), 'wt') as fp:
+            fp.write('{}\n'.format(FILENAME))
             for d in dirs:
                 # assume directories are terminated with /
                 fp.write(posixpath.normpath(d))
@@ -105,13 +106,8 @@ def untrack(paths):
 @click.option('--with-color/--no-color',
               default=True,
               help='Enable/disable colored output')
-@click.option(
-    '--with-hooks/--no-hooks',
-    default=True,
-    help=
-    'Install post-checkout hook used to automatically update the working copy')
 @click.pass_context
-def cli(ctx, with_color, with_hooks):
+def cli(ctx, with_color):
     """Utility to manage git externals, meant to be used as a drop-in replacement to svn externals
 
     This script works cloning externals found in the `git_externals.json` file into `.git/externals` and
@@ -120,9 +116,6 @@ def cli(ctx, with_color, with_hooks):
 
     if ctx.invoked_subcommand != 'add' and not os.path.exists(FILENAME):
         error("Unable to find", FILENAME, exitcode=1)
-
-    if with_hooks:
-        install_hooks()
 
     if not os.path.exists(DEFAULT_DIR):
         if ctx.invoked_subcommand not in set(['update', 'add']):
@@ -136,13 +129,21 @@ def cli(ctx, with_color, with_hooks):
 
 
 @cli.command('update')
-def gitext_update():
+@click.option(
+    '--with-hooks/--no-hooks',
+    default=True,
+    help=
+    'Install post-checkout hook used to automatically update the working copy')
+@click.option('--recursive', help='Call git-externals update recursively')
+def gitext_update(with_hooks, recursive):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
-    gitext_up()
+    if with_hooks:
+        install_hooks(recursive)
+    gitext_up(recursive)
 
 
-def gitext_up():
+def gitext_up(recursive):
     clean_repo()
     if not os.path.exists(FILENAME):
         return
@@ -182,7 +183,8 @@ def gitext_up():
                              git_externals[ext_repo]['ref'])
                         git('checkout', git_externals[ext_repo]['ref'])
 
-                gitext_up()
+                if recursive:
+                    gitext_up(recursive)
 
         def absjoin(*args):
             return os.path.abspath(os.path.join(*args))
@@ -343,14 +345,14 @@ def iter_externals(externals, verbose=True):
             yield entry
 
 
-def install_hooks():
+def install_hooks(recursive):
     hook_filename = os.path.join('.git', 'hooks', 'post-checkout')
     with open(hook_filename, 'wt') as fp:
         fp.write('#!/bin/sh\n')
         fp.write(
             '# see http://article.gmane.org/gmane.comp.version-control.git/281960\n')
         fp.write('unset GIT_WORK_TREE\n')
-        fp.write('if [ $3 -ne 0 ]; then git externals update; fi;')
+        fp.write('if [ $3 -ne 0 ]; then git externals update {}; fi;'.format('' if not recursive else '--recursive'))
     os.chmod(hook_filename, 0o755)
 
 
