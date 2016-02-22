@@ -350,7 +350,7 @@ def install_hooks():
         fp.write(
             '# see http://article.gmane.org/gmane.comp.version-control.git/281960\n')
         fp.write('unset GIT_WORK_TREE\n')
-        fp.write('git externals update')
+        fp.write('if [ $3 -ne 0 ]; then git externals update; fi;')
     os.chmod(hook_filename, 0o755)
 
 
