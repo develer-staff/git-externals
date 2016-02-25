@@ -32,7 +32,8 @@ def error(*args, **kwargs):
 def get_repo_name(repo):
     name = repo.split('/')[-1]
     if name.endswith('.git'):
-        return name[:-len('.git')]
+        name = name[:-len('.git')]
+    return name
 
 
 def get_entries():
