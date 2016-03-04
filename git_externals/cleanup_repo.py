@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-import os.path
+import posixpath
 import re
 import argparse
 
-from .utils import svn, git, SVNError, checkout, chdir
+from .utils import svn, git, SVNError, checkout, chdir, tags
 import logging
 
 TAGS_RE = re.compile('.+/tags/(.+)')
 
-def get_branches_and_tags():
+def gitsvn_branches_and_tags():
     output = git('branch', '-r')
 
     branches, tags = [], []
@@ -27,28 +27,31 @@ def get_branches_and_tags():
 def name_of(remote):
     if remote.endswith('/'):
         remote = remote[:-1]
-    return os.path.basename(remote)
+    return posixpath.basename(remote)
 
 
 def branchtag_to_tag(tag_name, remote_tag):
     with checkout(tag_name, remote_tag):
         pass
 
+    if tag_name in tags():
+        git('tag', '-d', tag_name)
+
     git('tag', tag_name, tag_name)
     git('branch', '-D', tag_name)
 
 
-def get_merged_branches(repo):
+def svn_remote_branches(repo):
     try:
-        entries = svn('ls', os.path.join(repo, 'branches')).splitlines()
+        entries = svn('ls', posixpath.join(repo, 'branches')).splitlines()
     except SVNError:
         return set()
     return set([b[:-1] for b in entries])
 
 
-def get_removed_tags(repo):
+def svn_remote_tags(repo):
     try:
-        entries = svn('ls', os.path.join(repo, 'tags')).splitlines()
+        entries = svn('ls', posixpath.join(repo, 'tags')).splitlines()
     except SVNError:
         return set()
     return set([t[:-1] for t in entries])
@@ -56,15 +59,16 @@ def get_removed_tags(repo):
 
 def cleanup(repo, with_revbound=False, remote=None, log=None):
     if log is None:
+        logging.basicConfig()
         log = logging.getLogger(__name__)
         log.setLevel(logging.INFO)
 
     with chdir(repo):
         if remote is not None:
-            remote_branches = get_merged_branches(remote)
-            remote_tags = get_removed_tags(remote)
+            remote_branches = svn_remote_branches(remote)
+            remote_tags = svn_remote_tags(remote)
 
-        branches, tags = get_branches_and_tags()
+        branches, tags = gitsvn_branches_and_tags()
 
         revbound_re = re.compile(r'.+@(\d+)')
 
