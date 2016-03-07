@@ -22,14 +22,13 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from .cleanup_repo import cleanup
+from .cleanup_repo import cleanup, name_of
 from .utils import git, svn, chdir, checkout, current_branch, SVNError, branches, \
-    tags, IndentedLoggerAdapter
+    tags, IndentedLoggerAdapter, git_remote_branches_and_tags
 from .process_externals import parsed_externals
 
 GITSVN_EXT = '.gitsvn'
 GIT_EXT = '.git'
-GIT_TMP_EXT = '.gittmp'
 
 logging.basicConfig(format='%(levelname)8s %(asctime)s: %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %I:%m:%S')
@@ -325,14 +324,17 @@ def gittify(repo, config):
         log.info('{} already gittified'.format(repo_name))
         return gittified
 
-    tmp_git_repo = repo_name + GIT_TMP_EXT
     gitsvn_repo = repo_name + GITSVN_EXT
 
     # clone first in a working copy, because we need to perform checkouts, commit, etc...
-    log.info('Cloning into tmp git repo {}'.format(tmp_git_repo))
-    git('clone', gitsvn_repo, tmp_git_repo)
+    log.info('Cloning into final git repo {}'.format(git_repo))
+    git('clone', gitsvn_repo, git_repo)
 
-    with chdir(tmp_git_repo):
+    with chdir(git_repo):
+        for branch in git_remote_branches_and_tags()[0]:
+            with checkout(name_of(branch), branch):
+                pass
+
         log.info('Gittifying branches...')
         for branch in branches():
             gittify_branch(gitsvn_repo, branch, branch, config)
@@ -347,13 +349,7 @@ def gittify(repo, config):
 
             git('branch', '-D', tag)
 
-    log.info('Cloning into the final git repo {}'.format(git_repo))
-    git('clone', '--bare', tmp_git_repo, git_repo)
-    with chdir(git_repo):
         remote_rm('origin')
-
-    log.info('Removing tmp git repo {}'.format(tmp_git_repo))
-    shutil.rmtree(tmp_git_repo)
 
 
 def clone(repo, config):

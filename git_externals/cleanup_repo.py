@@ -4,24 +4,8 @@ import posixpath
 import re
 import argparse
 
-from .utils import svn, git, SVNError, checkout, chdir, tags
 import logging
-
-TAGS_RE = re.compile('.+/tags/(.+)')
-
-def gitsvn_branches_and_tags():
-    output = git('branch', '-r')
-
-    branches, tags = [], []
-
-    for line in output.splitlines():
-        line = line.strip()
-        m = TAGS_RE.match(line)
-
-        t = tags if m is not None else branches
-        t.append(line)
-
-    return branches, tags
+from .utils import svn, git, SVNError, checkout, chdir, tags, git_remote_branches_and_tags
 
 
 def name_of(remote):
@@ -68,7 +52,7 @@ def cleanup(repo, with_revbound=False, remote=None, log=None):
             remote_branches = svn_remote_branches(remote)
             remote_tags = svn_remote_tags(remote)
 
-        branches, tags = gitsvn_branches_and_tags()
+        branches, tags = git_remote_branches_and_tags()
 
         revbound_re = re.compile(r'.+@(\d+)')
 

@@ -6,6 +6,7 @@ import subprocess
 import os
 import sys
 import logging
+import re
 
 from contextlib import contextmanager
 
@@ -70,6 +71,23 @@ def branches():
 def tags():
     refs = git('for-each-ref', 'refs/tags', "--format=%(refname)")
     return [line.split('/')[2] for line in refs.splitlines()]
+
+
+TAGS_RE = re.compile('.+/tags/(.+)')
+
+def git_remote_branches_and_tags():
+    output = git('branch', '-r')
+
+    _branches, _tags = [], []
+
+    for line in output.splitlines():
+        line = line.strip()
+        m = TAGS_RE.match(line)
+
+        t = _tags if m is not None else _branches
+        t.append(line)
+
+    return _branches, _tags
 
 
 @contextmanager
