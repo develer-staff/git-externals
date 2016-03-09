@@ -84,14 +84,24 @@ def clean_repo():
         pass
 
 
-def link_targets(targets):
-    for target in targets:
-        dsts = target[1]
-        for dst in dsts:
+def link_entries(git_externals):
+    entries = [(get_repo_name(repo), src, os.path.join(os.getcwd(), dst))
+               for (repo, repo_data) in git_externals.items()
+               for (src, dsts) in repo_data['targets'].items()
+               for dst in dsts]
+
+    entries.sort(key=lambda x: x[2])
+
+    # remove links starting from the deepest dst
+    for _, __, dst in entries[::-1]:
+        if os.path.lexists(dst):
+            rm_link(dst)
+
+    # link starting from the highest dst
+    for repo_name, src, dst in entries:
+        with chdir(os.path.join(DEFAULT_DIR, repo_name)):
             mkdir_p(os.path.split(dst)[0])
-            if os.path.lexists(dst):
-                rm_link(dst)
-            link(target[0], dst)
+            link(os.path.abspath(src), dst)
 
 
 def untrack(paths):
@@ -135,21 +145,45 @@ def cli(ctx, with_color):
     default=True,
     help=
     'Install post-checkout hook used to automatically update the working copy')
-@click.option('--recursive', help='Call git-externals update recursively')
-def gitext_update(with_hooks, recursive):
+@click.option('--flat', help='Do not call git-externals update recursively', is_flag=True)
+def gitext_update(with_hooks, flat):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
+    recursive = not flat
+
     if with_hooks:
         install_hooks(recursive)
     gitext_up(recursive)
 
 
-def gitext_up(recursive):
+def filter_externals_not_needed(all_externals, entries):
+    git_externals = {}
+    for repo_name, repo_val in all_externals.items():
+        filtered_targets = {}
+        for src, dsts in repo_val['targets'].items():
+            filtered_dsts = []
+            for dst in dsts:
+                inside_external = any([os.path.abspath(dst).startswith(e) for e in entries])
+                if inside_external:
+                    filtered_dsts.append(dst)
+
+            if filtered_dsts:
+                filtered_targets[src] = filtered_dsts
+
+        if filtered_targets:
+            git_externals[repo_name] = all_externals[repo_name]
+            git_externals[repo_name]['targets'] = filtered_targets
+
+    return git_externals
+
+
+def gitext_up(recursive, entries=None):
     clean_repo()
     if not os.path.exists(FILENAME):
         return
 
-    git_externals = load_gitexts()
+    all_externals = load_gitexts()
+    git_externals = all_externals if entries is None else filter_externals_not_needed(all_externals, entries)
 
     for ext_repo in git_externals.keys():
         mkdir_p(DEFAULT_DIR)
@@ -184,16 +218,15 @@ def gitext_up(recursive):
                              git_externals[ext_repo]['ref'])
                         git('checkout', git_externals[ext_repo]['ref'])
 
-                if recursive:
-                    gitext_up(recursive)
+    link_entries(git_externals)
 
-        def absjoin(*args):
-            return os.path.abspath(os.path.join(*args))
-
-        targets = [(absjoin(DEFAULT_DIR, repo_name, t[0]), t[1])
-                   for t in git_externals[ext_repo]['targets'].items()]
-
-        link_targets(targets)
+    if recursive:
+        for ext_repo in git_externals.keys():
+            entries = [os.path.realpath(d)
+                       for t in git_externals[ext_repo]['targets'].values()
+                       for d in t]
+            with chdir(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo))):
+                gitext_up(recursive, entries)
 
     to_untrack = []
     for ext in git_externals.values():
