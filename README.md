@@ -27,7 +27,7 @@ created with a bit of info.
 
 This script can work in 3 modes:
 - Clone: clone the desired svn repos and all their externals into .gitsvn repos;
-- Fetch: it's possible to simply new revisions from svn without cloning everythin again;
+- Fetch: it's possible to simply fetch new revisions from svn without cloning everythin again;
 - Finalization: when everything is ready convert all the git-svn repos into bare git repos;
 
 Usage:

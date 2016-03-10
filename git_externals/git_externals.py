@@ -105,7 +105,7 @@ def link_entries(git_externals):
 
 
 def untrack(paths):
-    with open('.git/info/exclude', 'wt') as fp:
+    with open(os.path.join('.git', 'info', 'exclude'), 'wt') as fp:
         for p in paths:
             if p.startswith('./'):
                 p = p[2:]
@@ -337,8 +337,14 @@ def gitext_remove(external):
 
 @cli.command('info')
 @click.argument('external', nargs=-1)
-def gitext_info(external):
+@click.option('--flat', is_flag=True, help='Print info only for top level externals')
+def gitext_info(external, flat):
     """Print some info about the externals."""
+
+    if not flat:
+        gitext_recursive_info('.')
+        return
+
     external = set(external)
     git_externals = load_gitexts()
 
@@ -348,18 +354,54 @@ def gitext_info(external):
     filtered = filtered or git_externals.items()
 
     for ext_repo, ext in filtered:
-        click.echo('Repo:   {}'.format(ext_repo))
-        if 'tag' in ext:
-            click.echo('Tag:    {}'.format(ext['tag']))
-        else:
-            click.echo('Branch: {}'.format(ext['branch']))
-            click.echo('Ref:    {}'.format(ext['ref']))
+        print_gitext_info(ext_repo, ext, root_dir='.')
 
-        for src, dsts in ext['targets'].items():
-            for dst in dsts:
-                click.echo('  {} -> {}'.format(src, dst))
 
-        click.echo('')
+def gitext_recursive_info(root_dir):
+    git_exts = load_gitexts()
+    git_exts = {ext_repo: ext for ext_repo, ext in git_exts.items()
+                if os.path.exists(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo)))}
+
+    for ext_repo, ext in git_exts.items():
+        print_gitext_info(ext_repo, ext, root_dir=root_dir)
+
+    for ext_repo, ext in git_exts.items():
+        entries = [os.path.realpath(d)
+                   for t in git_exts[ext_repo]['targets'].values()
+                   for d in t]
+
+        cwd = os.getcwd()
+
+        with chdir(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo))):
+            filtered = filter_externals_not_needed(load_gitexts(), entries)
+
+            for dsts in ext['targets'].values():
+                for dst in dsts:
+                    real_dst = os.path.realpath(os.path.join(cwd, dst))
+
+                    has_deps = any([os.path.realpath(d).startswith(real_dst)
+                                    for e in filtered.values()
+                                    for ds in e['targets'].values()
+                                    for d in ds])
+
+                    if has_deps:
+                        gitext_recursive_info(os.path.join(root_dir, dst))
+
+
+def print_gitext_info(ext_repo, ext, root_dir):
+    click.echo('Repo:   {}'.format(ext_repo))
+
+    if 'tag' in ext:
+        click.echo('Tag:    {}'.format(ext['tag']))
+    else:
+        click.echo('Branch: {}'.format(ext['branch']))
+        click.echo('Ref:    {}'.format(ext['ref']))
+
+    for src, dsts in ext['targets'].items():
+        for dst in dsts:
+            click.echo('  {} -> {}'.format(src, os.path.join(root_dir, dst)))
+
+    click.echo('')
 
 
 def iter_externals(externals, verbose=True):
