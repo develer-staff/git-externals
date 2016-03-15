@@ -440,7 +440,7 @@ def gitsvn_fetch_all(config):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('repos', nargs='*', help='SVN repos to migrate to Git')
-    parser.add_argument('--git-server', default='yourserver',
+    parser.add_argument('--git-server', default='/',
                         help='Url to use as base url for the git server')
     parser.add_argument('--filename', default='git_externals.json',
                         help='Filename of the json dump of the svn externals')

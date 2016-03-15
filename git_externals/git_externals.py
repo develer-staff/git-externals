@@ -12,6 +12,11 @@ import os.path
 import sys
 import posixpath
 
+try:
+    from urllib.parse import urlparse, urlunparse
+except ImportError:
+    from urlparse import urlparse, urlunparse
+
 DEFAULT_DIR = os.path.join('.git', 'externals')
 FILENAME = 'git_externals.json'
 
@@ -34,6 +39,23 @@ def get_repo_name(repo):
     if name.endswith('.git'):
         name = name[:-len('.git')]
     return name
+
+
+def normalize_gitext_url(url):
+    # an absolute url is already normalized
+    if urlparse(url).netloc != '' or url.startswith('git@'):
+        return url
+
+    # relative urls use the root url of the current origin
+    remote_url = git('config', 'remote.origin.url').strip()
+
+    if remote_url.startswith('git@'):
+        prefix = remote_url[:remote_url.index(':')+1]
+        remote_url = prefix + url.strip('/')
+    else:
+        remote_url = urlunsplit(urlsplit(remote_url)._replace(path=url))
+
+    return remote_url
 
 
 def get_entries():
@@ -186,9 +208,11 @@ def gitext_up(recursive, entries=None):
     git_externals = all_externals if entries is None else filter_externals_not_needed(all_externals, entries)
 
     for ext_repo in git_externals.keys():
+        normalized_ext_repo = normalize_gitext_url(ext_repo)
+
         mkdir_p(DEFAULT_DIR)
         with chdir(DEFAULT_DIR):
-            repo_name = get_repo_name(ext_repo)
+            repo_name = get_repo_name(normalized_ext_repo)
 
             info('External', repo_name)
             if not os.path.exists(repo_name):
@@ -196,10 +220,10 @@ def gitext_up(recursive, entries=None):
 
                 dirs = git_externals[ext_repo]['targets'].keys()
                 if './' not in dirs:
-                    sparse_checkout(repo_name, ext_repo, dirs,
+                    sparse_checkout(repo_name, normalized_ext_repo, dirs,
                                     git_externals[ext_repo]['branch'])
                 else:
-                    git('clone', ext_repo, repo_name)
+                    git('clone', normalized_ext_repo, repo_name)
 
             with chdir(repo_name):
                 git('fetch', '--all')
