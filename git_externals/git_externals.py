@@ -168,14 +168,16 @@ def cli(ctx, with_color):
     help=
     'Install post-checkout hook used to automatically update the working copy')
 @click.option('--flat', help='Do not call git-externals update recursively', is_flag=True)
-def gitext_update(with_hooks, flat):
+@click.option('--no-confirm', help='Do not ask for confirmation before updating, OVERWRITING LOCAL MODIFICATIONS', is_flag=True)
+def gitext_update(with_hooks, flat, no_confirm):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
     recursive = not flat
 
     if with_hooks:
         install_hooks(recursive)
-    gitext_up(recursive)
+
+    gitext_up(recursive, prompt_confirm=not no_confirm)
 
 
 def filter_externals_not_needed(all_externals, entries):
@@ -199,7 +201,17 @@ def filter_externals_not_needed(all_externals, entries):
     return git_externals
 
 
-def gitext_up(recursive, entries=None):
+def gitext_up(recursive, entries=None, prompt_confirm=True):
+
+    if prompt_confirm:
+        print("""git externals update is about to perform a hard reset of your working tree.
+ALL MODIFICATIONS WILL BE LOST""")
+        try:
+            click.confirm('Do you confirm?', abort=True)
+        except click.Abort:
+            print ('Aborted!')
+            return
+
     clean_repo()
     if not os.path.exists(FILENAME):
         return
@@ -250,7 +262,7 @@ def gitext_up(recursive, entries=None):
                        for t in git_externals[ext_repo]['targets'].values()
                        for d in t]
             with chdir(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo))):
-                gitext_up(recursive, entries)
+                gitext_up(recursive, entries, prompt_confirm=False)
 
     to_untrack = []
     for ext in git_externals.values():
