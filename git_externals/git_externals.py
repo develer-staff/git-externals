@@ -13,9 +13,9 @@ import sys
 import posixpath
 
 try:
-    from urllib.parse import urlparse, urlunparse
+    from urllib.parse import urlparse, urlunparse, urlsplit, urlunsplit
 except ImportError:
-    from urlparse import urlparse, urlunparse
+    from urlparse import urlparse, urlunparse, urlsplit, urlunsplit
 
 DEFAULT_DIR = os.path.join('.git', 'externals')
 FILENAME = 'git_externals.json'
