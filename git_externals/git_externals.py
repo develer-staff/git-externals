@@ -76,7 +76,7 @@ def dump_gitexts(externals):
         json.dump(externals, fp, sort_keys=True, indent=4)
 
 
-def sparse_checkout(repo_name, repo, dirs, branch):
+def sparse_checkout(repo_name, repo, dirs):
     git('init', repo_name)
 
     with chdir(repo_name):
@@ -91,8 +91,6 @@ def sparse_checkout(repo_name, repo, dirs, branch):
                 if d[-1] == '/':
                     fp.write('/')
                 fp.write('\n')
-
-        git('pull', 'origin', branch)
 
     return repo_name
 
@@ -232,13 +230,13 @@ ALL MODIFICATIONS WILL BE LOST""")
 
                 dirs = git_externals[ext_repo]['targets'].keys()
                 if './' not in dirs:
-                    sparse_checkout(repo_name, normalized_ext_repo, dirs,
-                                    git_externals[ext_repo]['branch'])
+                    sparse_checkout(repo_name, normalized_ext_repo, dirs)
                 else:
                     git('clone', normalized_ext_repo, repo_name)
 
             with chdir(repo_name):
                 git('fetch', '--all')
+                git('fetch', '--tags')
 
                 if 'tag' in git_externals[ext_repo]:
                     info('Checking out tag', git_externals[ext_repo]['tag'])
