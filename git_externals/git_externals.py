@@ -462,7 +462,7 @@ def install_hooks(recursive):
         fp.write(
             '# see http://article.gmane.org/gmane.comp.version-control.git/281960\n')
         fp.write('unset GIT_WORK_TREE\n')
-        fp.write('if [ $3 -ne 0 ]; then git externals update {}; fi;'.format('' if not recursive else '--recursive'))
+        fp.write('if [ $3 -ne 0 ]; then git externals update {}; fi;'.format('--flat' if not recursive else ''))
     os.chmod(hook_filename, 0o755)
 
 
