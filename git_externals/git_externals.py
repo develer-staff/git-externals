@@ -162,7 +162,7 @@ def cli(ctx, with_color):
 @cli.command('update')
 @click.option(
     '--with-hooks/--no-hooks',
-    default=True,
+    default=False,
     help=
     'Install post-checkout hook used to automatically update the working copy')
 @click.option('--flat', help='Do not call git-externals update recursively', is_flag=True)
