@@ -23,6 +23,10 @@ FILENAME = 'git_externals.json'
 click.disable_unicode_literals_warning = True
 
 
+def echo(*args):
+    click.echo(' '.join(args))
+
+
 def info(*args):
     click.secho(' '.join(args), fg='blue')
 
@@ -224,7 +228,7 @@ ALL MODIFICATIONS WILL BE LOST""")
 
             info('External', repo_name)
             if not os.path.exists(repo_name):
-                info('Cloning external', repo_name)
+                echo('Cloning external', repo_name)
 
                 dirs = git_externals[ext_repo]['targets'].keys()
                 if './' not in dirs:
@@ -237,17 +241,15 @@ ALL MODIFICATIONS WILL BE LOST""")
                 git('fetch', '--tags')
 
                 if 'tag' in git_externals[ext_repo]:
-                    info('Checking out tag', git_externals[ext_repo]['tag'])
+                    echo('Checking out tag', git_externals[ext_repo]['tag'])
                     git('checkout', git_externals[ext_repo]['tag'])
                 else:
-                    info('Checking out branch',
-                         git_externals[ext_repo]['branch'])
+                    echo('Checking out branch', git_externals[ext_repo]['branch'])
                     git('checkout', git_externals[ext_repo]['branch'])
                     git('pull', 'origin', git_externals[ext_repo]['branch'])
 
                     if git_externals[ext_repo]['ref'] is not None:
-                        info('Checking out commit',
-                             git_externals[ext_repo]['ref'])
+                        echo('Checking out commit', git_externals[ext_repo]['ref'])
                         git('checkout', git_externals[ext_repo]['ref'])
 
     link_entries(git_externals)
@@ -421,7 +423,7 @@ def gitext_recursive_info(root_dir):
 
 
 def print_gitext_info(ext_repo, ext, root_dir):
-    click.echo('Repo:   {}'.format(ext_repo))
+    click.secho('Repo:   {}'.format(ext_repo), fg='blue')
 
     if 'tag' in ext:
         click.echo('Tag:    {}'.format(ext['tag']))
