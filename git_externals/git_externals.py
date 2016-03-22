@@ -167,7 +167,7 @@ def cli(ctx, with_color):
     'Install post-checkout hook used to automatically update the working copy')
 @click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
 @click.option('--no-confirm', help='Do not ask for confirmation before updating, OVERWRITING LOCAL MODIFICATIONS', is_flag=True)
-def gitext_update(with_hooks, flat, no_confirm):
+def gitext_update(with_hooks, recursive, no_confirm):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
     if with_hooks:
