@@ -165,13 +165,11 @@ def cli(ctx, with_color):
     default=False,
     help=
     'Install post-checkout hook used to automatically update the working copy')
-@click.option('--flat', help='Do not call git-externals update recursively', is_flag=True)
+@click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
 @click.option('--no-confirm', help='Do not ask for confirmation before updating, OVERWRITING LOCAL MODIFICATIONS', is_flag=True)
 def gitext_update(with_hooks, flat, no_confirm):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
-    recursive = not flat
-
     if with_hooks:
         install_hooks(recursive)
 
@@ -371,11 +369,11 @@ def gitext_remove(external):
 
 @cli.command('info')
 @click.argument('external', nargs=-1)
-@click.option('--flat', is_flag=True, help='Print info only for top level externals')
-def gitext_info(external, flat):
+@click.option('--recursive/--no-recursive', default=True, help='Print info only for top level externals')
+def gitext_info(external, recursive):
     """Print some info about the externals."""
 
-    if not flat:
+    if recursive:
         gitext_recursive_info('.')
         return
 
@@ -462,7 +460,7 @@ def install_hooks(recursive):
         fp.write(
             '# see http://article.gmane.org/gmane.comp.version-control.git/281960\n')
         fp.write('unset GIT_WORK_TREE\n')
-        fp.write('if [ $3 -ne 0 ]; then git externals update {}; fi;'.format('--flat' if not recursive else ''))
+        fp.write('if [ $3 -ne 0 ]; then git externals update {}; fi;'.format('--no-recursive' if not recursive else ''))
     os.chmod(hook_filename, 0o755)
 
 
