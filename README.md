@@ -48,7 +48,7 @@ This allows keeping the workflow as close as possible to the vanilla Git workflo
 
 ### Example Usage
 ```bash
-$ git externals add --branch=master --rehttps://gitlab.com/gitlab-org/gitlab-ce.git shared/ foo
+$ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ foo
 $ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ bar
 $ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git README.md baz/README.md
 $ git externals add --tag=v4.4 https://github.com/torvalds/linux.git Makefile Makefile
