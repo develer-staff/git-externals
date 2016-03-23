@@ -17,8 +17,8 @@ try:
 except ImportError:
     from urlparse import urlparse, urlunparse, urlsplit, urlunsplit
 
-DEFAULT_DIR = os.path.join('.git', 'externals')
-FILENAME = 'git_externals.json'
+EXTERNALS_ROOT = os.path.join('.git', 'externals')
+EXTERNALS_JSON = 'git_externals.json'
 
 click.disable_unicode_literals_warning = True
 
@@ -65,18 +65,18 @@ def normalize_gitext_url(url):
 def get_entries():
     return [get_repo_name(e)
             for e in load_gitexts().keys()
-            if os.path.exists(os.path.join(DEFAULT_DIR, get_repo_name(e)))]
+            if os.path.exists(os.path.join(EXTERNALS_ROOT, get_repo_name(e)))]
 
 
 def load_gitexts():
-    if os.path.exists(FILENAME):
-        with open(FILENAME) as fp:
+    if os.path.exists(EXTERNALS_JSON):
+        with open(EXTERNALS_JSON) as fp:
             return json.load(fp)
     return {}
 
 
 def dump_gitexts(externals):
-    with open(FILENAME, 'wt') as fp:
+    with open(EXTERNALS_JSON, 'wt') as fp:
         json.dump(externals, fp, sort_keys=True, indent=4)
 
 
@@ -88,7 +88,7 @@ def sparse_checkout(repo_name, repo, dirs):
         git('config', 'core.sparsecheckout', 'true')
 
         with open(os.path.join('.git', 'info', 'sparse-checkout'), 'wt') as fp:
-            fp.write('{}\n'.format(FILENAME))
+            fp.write('{}\n'.format(EXTERNALS_JSON))
             for d in dirs:
                 # assume directories are terminated with /
                 fp.write(posixpath.normpath(d))
@@ -123,7 +123,7 @@ def link_entries(git_externals):
 
     # link starting from the highest dst
     for repo_name, src, dst in entries:
-        with chdir(os.path.join(DEFAULT_DIR, repo_name)):
+        with chdir(os.path.join(EXTERNALS_ROOT, repo_name)):
             mkdir_p(os.path.split(dst)[0])
             link(os.path.abspath(src), dst)
 
@@ -149,10 +149,10 @@ def cli(ctx, with_color):
     then it uses symlinks to create the wanted directory layout.
     """
 
-    if ctx.invoked_subcommand != 'add' and not os.path.exists(FILENAME):
-        error("Unable to find", FILENAME, exitcode=1)
+    if ctx.invoked_subcommand != 'add' and not os.path.exists(EXTERNALS_JSON):
+        error("Unable to find", EXTERNALS_JSON, exitcode=1)
 
-    if not os.path.exists(DEFAULT_DIR):
+    if not os.path.exists(EXTERNALS_ROOT):
         if ctx.invoked_subcommand not in set(['update', 'add']):
             error('You must first run git-externals update/add', exitcode=2)
     else:
@@ -213,7 +213,7 @@ ALL MODIFICATIONS WILL BE LOST""")
             return
 
     clean_repo()
-    if not os.path.exists(FILENAME):
+    if not os.path.exists(EXTERNALS_JSON):
         return
 
     all_externals = load_gitexts()
@@ -222,8 +222,8 @@ ALL MODIFICATIONS WILL BE LOST""")
     for ext_repo in git_externals.keys():
         normalized_ext_repo = normalize_gitext_url(ext_repo)
 
-        mkdir_p(DEFAULT_DIR)
-        with chdir(DEFAULT_DIR):
+        mkdir_p(EXTERNALS_ROOT)
+        with chdir(EXTERNALS_ROOT):
             repo_name = get_repo_name(normalized_ext_repo)
 
             info('External', repo_name)
@@ -259,7 +259,7 @@ ALL MODIFICATIONS WILL BE LOST""")
             entries = [os.path.realpath(d)
                        for t in git_externals[ext_repo]['targets'].values()
                        for d in t]
-            with chdir(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo))):
+            with chdir(os.path.join(EXTERNALS_ROOT, get_repo_name(ext_repo))):
                 gitext_up(recursive, entries, prompt_confirm=False)
 
     to_untrack = []
@@ -394,7 +394,7 @@ def gitext_info(external, recursive):
 def gitext_recursive_info(root_dir):
     git_exts = load_gitexts()
     git_exts = {ext_repo: ext for ext_repo, ext in git_exts.items()
-                if os.path.exists(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo)))}
+                if os.path.exists(os.path.join(EXTERNALS_ROOT, get_repo_name(ext_repo)))}
 
     for ext_repo, ext in git_exts.items():
         print_gitext_info(ext_repo, ext, root_dir=root_dir)
@@ -406,7 +406,7 @@ def gitext_recursive_info(root_dir):
 
         cwd = os.getcwd()
 
-        with chdir(os.path.join(DEFAULT_DIR, get_repo_name(ext_repo))):
+        with chdir(os.path.join(EXTERNALS_ROOT, get_repo_name(ext_repo))):
             filtered = filter_externals_not_needed(load_gitexts(), entries)
 
             for dsts in ext['targets'].values():
@@ -443,7 +443,7 @@ def iter_externals(externals, verbose=True):
         externals = get_entries()
 
     for entry in externals:
-        entry_path = os.path.join(DEFAULT_DIR, entry)
+        entry_path = os.path.join(EXTERNALS_ROOT, entry)
 
         if not os.path.exists(entry_path):
             error('External {} not found'.format(entry), exitcode=None)
@@ -468,5 +468,5 @@ def install_hooks(recursive):
 
 def enable_colored_output():
     for entry in get_entries():
-        with chdir(os.path.join(DEFAULT_DIR, entry)):
+        with chdir(os.path.join(EXTERNALS_ROOT, entry)):
             git('config', 'color.ui', 'always')
