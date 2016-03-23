@@ -11,6 +11,7 @@ import os
 import os.path
 import sys
 import posixpath
+from collections import defaultdict, namedtuple
 
 try:
     from urllib.parse import urlparse, urlunparse, urlsplit, urlunsplit
@@ -85,9 +86,33 @@ def load_gitexts():
     return {}
 
 
+def load_gitexts(pwd=None):
+    """Load the *externals definition file* present in given
+    directory, or cwd
+    """
+    d = pwd if pwd is not None else '.'
+    fn = os.path.join(d, EXTERNALS_JSON)
+    if os.path.exists(fn):
+        with open(fn) as f:
+            return json.load(f)
+    return {}
+
+
 def dump_gitexts(externals):
     with open(externals_json_path(), 'wt') as fp:
         json.dump(externals, fp, sort_keys=True, indent=4)
+
+
+def foreach_externals(pwd, callback=None):
+    """
+    Iterates over given externals.
+    """
+    externals = load_gitexts(pwd)
+    for rel_url in externals:
+        ext_path = os.path.join(pwd, EXTERNALS_ROOT, get_repo_name(rel_url))
+        if callback is not None:
+            callback(rel_url, ext_path, externals[rel_url])
+        foreach_externals(ext_path, callback=callback)
 
 
 def sparse_checkout(repo_name, repo, dirs):
@@ -187,7 +212,32 @@ def gitext_update(with_hooks, recursive, no_confirm):
     if with_hooks:
         install_hooks(recursive)
 
+    externals_sanity_check()
     gitext_up(recursive, prompt_confirm=not no_confirm)
+
+
+def externals_sanity_check():
+    """Check that we are not trying to track various refs of the same external repo"""
+    ExtItem = namedtuple('ExtItem', ['branch', 'ref'])
+    registry = defaultdict(set)
+
+    def registry_add(url, path, ext):
+        registry[url].add(ExtItem(ext['branch'], ext['ref']))
+
+    foreach_externals('.', registry_add)
+    errmsg = None
+    for url, set_ in registry.iteritems():
+        if len(set_) > 1:
+            if errmsg is None:
+                errmsg = ["Error: one project can not refer to different branches/refs of the same git external repository,",
+                    "however it appear that it's the case for:"]
+            errmsg.append('\t- {}, tracked as:'.format(url))
+            for i in set_:
+                errmsg.append("\t\t- branch: '{0}', ref: '{1}'".format(i.branch, i.ref))
+    if errmsg is not None:
+        errmsg.append("Please correct the corresponding {0} before proceeding".format(EXTERNALS_JSON))
+        error('\n'.join(errmsg), exitcode=1)
+    info('externals sanity check passed!')
 
 
 def filter_externals_not_needed(all_externals, entries):
