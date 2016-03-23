@@ -43,9 +43,6 @@ However ```gittify --help``` is useful as well.
 This script is intended for daily usage. Basically it clones the externals into .git/externals
 and then it uses symlinks to provide the wanted directory layout.
 
-By default it installs a post-checkout hook that updates the current working directory automatically.
-This allows keeping the workflow as close as possible to the vanilla Git workflow.
-
 ### Example Usage
 ```bash
 $ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ foo
