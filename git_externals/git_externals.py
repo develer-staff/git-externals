@@ -152,6 +152,23 @@ def sparse_checkout(repo_name, repo, dirs):
     return repo_name
 
 
+def is_workingtree_clean(path):
+    """
+    Returns true if and only if there are no modifications to tracked files. By
+    modifications it is intended additions, deletions, file removal or
+    conflicts. If True is returned, that means that performing a
+    `git reset --hard` would result in no local modifications lost because:
+    - tracked files are unchanged
+    - untracked files are not modified anyway
+    """
+    with chdir(path):
+        try:
+            # All returned lines should be empty
+            return all(line.strip() for line in git('status', '--untracked-files=no', '--porcelain').splitlines(True))
+        except GitError as err:
+            error(str(err), exitcode=err.errcode)
+
+
 def clean_repo():
     git('reset', '--hard')
     try:
@@ -238,21 +255,26 @@ def gitext_foreach(recursive, command_):
 
 
 @cli.command('update')
-@click.option(
-    '--with-hooks/--no-hooks',
-    default=False,
-    help=
-    'Install post-checkout hook used to automatically update the working copy')
 @click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
-@click.option('--no-confirm', help='Do not ask for confirmation before updating, OVERWRITING LOCAL MODIFICATIONS', is_flag=True)
-def gitext_update(with_hooks, recursive, no_confirm):
+def gitext_update(recursive):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
-    if with_hooks:
-        install_hooks(recursive)
-
     externals_sanity_check()
-    gitext_up(recursive, prompt_confirm=not no_confirm)
+
+    root = root_path()
+
+    # Aggregate in a list the `clean flags` of all working trees (root + externals)
+    clean = [is_workingtree_clean(root)]
+    foreach_externals(root,
+        lambda u,p,r: clean.append(is_workingtree_clean(p)),
+        recursive=recursive)
+
+    if all(clean):
+        # Proceed with update if everything is clean
+        gitext_up(recursive)
+    else:
+        echo("Cannot perform git externals update because one or more repositories contain some local modifications")
+        echo("Run:\tgit externals status\tto have more information")
 
 
 def externals_sanity_check():
@@ -263,7 +285,7 @@ def externals_sanity_check():
     def registry_add(url, path, ext):
         registry[url].add(ExtItem(ext['branch'], ext['ref']))
 
-    foreach_externals(root_path(), registry_add)
+    foreach_externals(root_path(), registry_add, recursive=True)
     errmsg = None
     for url, set_ in registry.iteritems():
         if len(set_) > 1:
@@ -300,18 +322,8 @@ def filter_externals_not_needed(all_externals, entries):
     return git_externals
 
 
-def gitext_up(recursive, entries=None, prompt_confirm=True):
+def gitext_up(recursive, entries=None):
 
-    if prompt_confirm:
-        print("""git externals update is about to perform a hard reset of your working tree.
-ALL MODIFICATIONS WILL BE LOST""")
-        try:
-            click.confirm('Do you confirm?', abort=True)
-        except click.Abort:
-            print ('Aborted!')
-            return
-
-    clean_repo()
     if not os.path.exists(externals_json_path()):
         return
 
@@ -359,7 +371,7 @@ ALL MODIFICATIONS WILL BE LOST""")
                        for t in git_externals[ext_repo]['targets'].values()
                        for d in t]
             with chdir(os.path.join(externals_root_path(), get_repo_name(ext_repo))):
-                gitext_up(recursive, entries, prompt_confirm=False)
+                gitext_up(recursive, entries)
 
     to_untrack = []
     for ext in git_externals.values():
@@ -552,17 +564,6 @@ def iter_externals(externals, verbose=True):
             if verbose:
                 info('External {}'.format(entry))
             yield entry
-
-
-def install_hooks(recursive):
-    hook_filename = os.path.join('.git', 'hooks', 'post-checkout')
-    with open(hook_filename, 'wt') as fp:
-        fp.write('#!/bin/sh\n')
-        fp.write(
-            '# see http://article.gmane.org/gmane.comp.version-control.git/281960\n')
-        fp.write('unset GIT_WORK_TREE\n')
-        fp.write('if [ $3 -ne 0 ]; then git externals update {}; fi;'.format('--no-recursive' if not recursive else ''))
-    os.chmod(hook_filename, 0o755)
 
 
 def enable_colored_output():
