@@ -226,7 +226,7 @@ def externals_sanity_check():
     def registry_add(url, path, ext):
         registry[url].add(ExtItem(ext['branch'], ext['ref']))
 
-    foreach_externals('.', registry_add)
+    foreach_externals(root_path(), registry_add)
     errmsg = None
     for url, set_ in registry.iteritems():
         if len(set_) > 1:
