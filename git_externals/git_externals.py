@@ -47,13 +47,15 @@ def get_repo_name(repo):
 
 
 def externals_json_path():
-    repo_root = git('rev-parse', '--show-toplevel').strip()
-    return os.path.join(repo_root, EXTERNALS_JSON)
+    return os.path.join(root_path(), EXTERNALS_JSON)
 
 
 def externals_root_path():
-    repo_root = git('rev-parse', '--show-toplevel').strip()
-    return os.path.join(repo_root, EXTERNALS_ROOT)
+    return os.path.join(root_path(), EXTERNALS_ROOT)
+
+
+def root_path():
+    return git('rev-parse', '--show-toplevel').strip()
 
 
 def normalize_gitext_url(url):
