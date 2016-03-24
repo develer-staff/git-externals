@@ -3,7 +3,7 @@
 from __future__ import print_function, unicode_literals
 
 from . import __version__
-from .utils import chdir, mkdir_p, link, rm_link, git, GitError
+from .utils import chdir, mkdir_p, link, rm_link, git, GitError, command, CommandError
 
 import click
 import json
@@ -105,16 +105,32 @@ def dump_gitexts(externals):
         json.dump(externals, fp, sort_keys=True, indent=4)
 
 
-def foreach_externals(pwd, callback=None):
+def foreach_externals(pwd, callback, recursive=True):
     """
-    Iterates over given externals.
+    Iterates over externals, starting from directory pwd, recursively or not
+    callback is called for each externals with the following arguments:
+        - relative url of current external repository
+        - path to external working tree directory
+        - refs: external as a dictionary (straight from json file)
     """
     externals = load_gitexts(pwd)
     for rel_url in externals:
         ext_path = os.path.join(pwd, EXTERNALS_ROOT, get_repo_name(rel_url))
         if callback is not None:
             callback(rel_url, ext_path, externals[rel_url])
-        foreach_externals(ext_path, callback=callback)
+        if recursive:
+            foreach_externals(ext_path, callback, recursive=recursive)
+
+
+def foreach_externals_dir(pwd, callback, recursive=True):
+    """
+    Same as foreach_externals, but place the callback in the directory
+    context of the externals before calling it
+    """
+    def run_from_dir(rel_url, ext_path, refs):
+        with chdir(ext_path):
+            callback(rel_url, ext_path, refs)
+    foreach_externals(root_path(), run_from_dir, recursive=recursive)
 
 
 def sparse_checkout(repo_name, repo, dirs):
@@ -200,6 +216,27 @@ def cli(ctx, with_color):
             gitext_st(())
 
 
+@cli.command('foreach')
+@click.option('--recursive/--no-recursive', help='If --recursive is specified, this command will recurse into nested externals', default=True)
+@click.argument('command_', nargs=-1, required=True, metavar="command")
+def gitext_foreach(recursive, command_):
+    """Evaluates an arbitrary shell command in each checked out external
+    """
+
+    externals_sanity_check()
+
+    def run_command(rel_url, ext_path, targets):
+        with chdir(ext_path):
+            try:
+                info("External {}".format(get_repo_name(rel_url)))
+                output = command(command_[0], *command_[1:])
+                echo(output)
+            except CommandError as err:
+                error(str(err), exitcode=err.errcode)
+
+    foreach_externals_dir(root_path(), run_command, recursive=recursive)
+
+
 @cli.command('update')
 @click.option(
     '--with-hooks/--no-hooks',
@@ -232,7 +269,7 @@ def externals_sanity_check():
         if len(set_) > 1:
             if errmsg is None:
                 errmsg = ["Error: one project can not refer to different branches/refs of the same git external repository,",
-                    "however it appear that it's the case for:"]
+                    "however it appears to be the case for:"]
             errmsg.append('\t- {}, tracked as:'.format(url))
             for i in set_:
                 errmsg.append("\t\t- branch: '{0}', ref: '{1}'".format(i.branch, i.ref))
