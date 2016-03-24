@@ -32,6 +32,10 @@ class SVNError(ProgError):
     def __init__(self, **kwargs):
         super(SVNError, self).__init__(prog='svn', **kwargs)
 
+class CommandError(ProgError):
+    def __init__(self, cmd, **kwargs):
+        super(CommandError, self).__init__(prog=cmd, **kwargs)
+
 
 def svn(*args):
     p = subprocess.Popen(['svn'] + list(args),
@@ -55,6 +59,19 @@ def git(*args):
 
     if p.returncode != 0:
         raise GitError(errcode=p.returncode, errmsg=err)
+
+    return output
+
+
+def command(cmd, *args):
+    p = subprocess.Popen([cmd] + list(args),
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
+                         universal_newlines=True)
+    output, err = p.communicate()
+
+    if p.returncode != 0:
+        raise CommandError(cmd, errcode=p.returncode, errmsg=err)
 
     return output
 
