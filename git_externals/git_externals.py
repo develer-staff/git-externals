@@ -105,24 +105,34 @@ def dump_gitexts(externals):
         json.dump(externals, fp, sort_keys=True, indent=4)
 
 
-def foreach_externals(pwd, callback, recursive=True):
+def foreach_externals(pwd, callback, recursive=True, only=[]):
     """
     Iterates over externals, starting from directory pwd, recursively or not
     callback is called for each externals with the following arguments:
         - relative url of current external repository
         - path to external working tree directory
         - refs: external as a dictionary (straight from json file)
+    Iterates over all externals by default, or filter over the externals listed
+    in only (filters on externals path, url or part of it)
     """
     externals = load_gitexts(pwd)
+    def filter_ext():
+        def take_external(url, path):
+            for expr in only:
+                return expr in url or expr in path
+        def take_all(*args):
+            return True
+        return take_external if len(only) else take_all
+
     for rel_url in externals:
         ext_path = os.path.join(pwd, EXTERNALS_ROOT, get_repo_name(rel_url))
-        if callback is not None:
+        if filter_ext()(rel_url, ext_path):
             callback(rel_url, ext_path, externals[rel_url])
         if recursive:
-            foreach_externals(ext_path, callback, recursive=recursive)
+            foreach_externals(ext_path, callback, recursive=recursive, only=only)
 
 
-def foreach_externals_dir(pwd, callback, recursive=True):
+def foreach_externals_dir(pwd, callback, recursive=True, only=[]):
     """
     Same as foreach_externals, but place the callback in the directory
     context of the externals before calling it
@@ -130,7 +140,7 @@ def foreach_externals_dir(pwd, callback, recursive=True):
     def run_from_dir(rel_url, ext_path, refs):
         with chdir(ext_path):
             callback(rel_url, ext_path, refs)
-    foreach_externals(root_path(), run_from_dir, recursive=recursive)
+    foreach_externals(root_path(), run_from_dir, recursive=recursive, only=only)
 
 
 def sparse_checkout(repo_name, repo, dirs):
@@ -163,8 +173,7 @@ def is_workingtree_clean(path):
     """
     with chdir(path):
         try:
-            # All returned lines should be empty
-            return all(line.strip() for line in git('status', '--untracked-files=no', '--porcelain').splitlines(True))
+            return len([line.strip for line in git('status', '--untracked-files=no', '--porcelain').splitlines(True)]) == 0
         except GitError as err:
             error(str(err), exitcode=err.errcode)
 
@@ -243,13 +252,12 @@ def gitext_foreach(recursive, command_):
     externals_sanity_check()
 
     def run_command(rel_url, ext_path, targets):
-        with chdir(ext_path):
-            try:
-                info("External {}".format(get_repo_name(rel_url)))
-                output = command(command_[0], *command_[1:])
-                echo(output)
-            except CommandError as err:
-                error(str(err), exitcode=err.errcode)
+        try:
+            info("External {}".format(get_repo_name(rel_url)))
+            output = command(command_[0], *command_[1:])
+            echo(output)
+        except CommandError as err:
+            error(str(err), exitcode=err.errcode)
 
     foreach_externals_dir(root_path(), run_command, recursive=recursive)
 
@@ -380,15 +388,30 @@ def gitext_up(recursive, entries=None):
 
 
 @cli.command('status')
-@click.argument('external', nargs=-1)
 @click.option(
     '--porcelain',
     is_flag=True,
     help='Print output using the porcelain format, useful mostly for scripts')
-def gitext_st(external, porcelain):
+@click.option(
+    '--verbose/--no-verbose',
+    is_flag=True,
+    help='Show the full output of git status, instead of showing only the modifications regarding tracked file')
+@click.argument('externals', nargs=-1)
+def gitext_st(porcelain, verbose, externals):
     """Call git status on the given externals"""
-    for _ in iter_externals(external):
-        click.echo(git('status', '--porcelain' if porcelain else ''))
+
+    def get_status(rel_url, ext_path, targets):
+        try:
+            if porcelain:
+                echo(rel_url)
+                click.echo(git('status', '--porcelain'))
+            elif verbose or not is_workingtree_clean(ext_path):
+                info("External {}".format(get_repo_name(rel_url)))
+                echo(git('status', '--untracked-files=no' if not verbose else ''))
+        except CommandError as err:
+            error(str(err), exitcode=err.errcode)
+
+    foreach_externals_dir(root_path(), get_status, recursive=True, only=externals)
 
 
 @cli.command('diff')
