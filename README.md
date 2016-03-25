@@ -43,7 +43,45 @@ However ```gittify --help``` is useful as well.
 This script is intended for daily usage. Basically it clones the externals into .git/externals
 and then it uses symlinks to provide the wanted directory layout.
 
-### Example Usage
+### Git externals status
+
+```bash
+$ git externals status [--porcelain|--verbose]
+$ git externals status [--porcelain|--verbose] [external1 [external2] ...]
+```
+
+Shows the working tree status of one, multiple, or all externals:
+ - add `--verbose` if you are also interested to see the externals that haven't
+been modified
+ - add `--porcelain` if you want the output easily parsable (for non-humans).
+
+```bash
+$ git externals status
+$ git externals status deploy
+$ git externals status deploy qtwidgets
+```
+
+### Git externals foreach
+
+```bash
+$ git externals foreach [--] cmd [arg1 [arg2] ...]
+```
+
+Evaluates an arbitrary shell command in each checked out external.
+```bash
+$ git externals foreach git fetch
+```
+
+**Note**: If some arguments of the shell command starts with `--`, like in 
+`git rev-parse --all`, you must pass `--` after `foreach` in order to stop 
+git externals argument processing, example:
+
+```bash
+$ git externals foreach -- git rev-parse --all
+```
+
+
+### Example usage
 ```bash
 $ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ foo
 $ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ bar
@@ -52,10 +90,12 @@ $ git externals add --tag=v4.4 https://github.com/torvalds/linux.git Makefile Ma
 $ git add git_externals.json
 $ git commit -m "DO NOT FORGET TO COMMIT THE EXTERNALS!!!"
 $ git externals update
-$ git externals status
 $ git externals diff
 $ git externals info
 $ git externals list
 ```
+
+
+
 Please be careful to include / if the source is a directory!
 
