@@ -267,6 +267,7 @@ def gitext_foreach(recursive, command_):
 def gitext_update(recursive):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
     """
+
     externals_sanity_check()
 
     root = root_path()
@@ -417,7 +418,8 @@ def gitext_st(porcelain, verbose, externals):
 @cli.command('diff')
 @click.argument('external', nargs=-1)
 def gitext_diff(external):
-    """Call git status on the given externals"""
+    """Call git diff on the given externals"""
+
     for _ in iter_externals(external):
         click.echo(git('diff'))
 
@@ -425,6 +427,7 @@ def gitext_diff(external):
 @cli.command('list')
 def gitext_ls():
     """Print just a list of all externals used"""
+
     for entry in iter_externals([], verbose=False):
         info(entry)
 
@@ -453,6 +456,7 @@ def gitext_add(external, src, dst, branch, tag, ref):
 
     It requires one of --branch or --tag.
     """
+
     git_externals = load_gitexts()
 
     if branch is None and tag is None:
@@ -494,6 +498,7 @@ def gitext_add(external, src, dst, branch, tag, ref):
 @click.argument('external', nargs=-1, metavar='URL')
 def gitext_remove(external):
     """Remove the externals at the given repository URLs """
+
     git_externals = load_gitexts()
 
     for ext in external:
