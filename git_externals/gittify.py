@@ -112,7 +112,7 @@ def svnext_to_gitext(ext, config):
 
         gitext['ref'] = None
         if ext['rev'] is not None:
-            # svn rev -> git sha
+            # svn rev -> git sha -> git tag
             rev = 'r' + ext['rev'] if ext['rev'][0] != 'r' else ext['rev']
 
             svn_ext_repo = loc[:-len(source)] if source != '.' else loc
@@ -121,9 +121,12 @@ def svnext_to_gitext(ext, config):
 
             with chdir(os.path.join('..', ext_repo + GITSVN_EXT)):
                 with checkout(gitext['branch'], back_to=current_branch()):
-                    gitext['ref'] = git('svn', 'find-rev', changed_rev).strip()
-                    if gitext['ref'] == '':
-                        gitext['ref'] = svnrev_to_gitsha(changed_rev)
+                    ref = git('svn', 'find-rev', changed_rev).strip()
+                    if ref == '':
+                        ref = svnrev_to_gitsha(changed_rev)
+                    if git('tag', '-l', rev).strip() == '':
+                        git('tag', rev, ref)
+                    gitext['ref'] = rev
 
     return gitext
 
