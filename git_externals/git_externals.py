@@ -58,6 +58,17 @@ def root_path():
     return git('rev-parse', '--show-toplevel').strip()
 
 
+def is_git_repo(quiet=True):
+    """Says if pwd is a Git working tree or not.
+    If not quiet: says it also on standard output
+    """
+    try:
+        return git('rev-parse', '--is-inside-work-tree').strip() == 'true'
+    except GitError as err:
+        if not quiet:
+            print (str(err))
+
+
 def normalize_gitext_url(url):
     # an absolute url is already normalized
     if urlparse(url).netloc != '' or url.startswith('git@'):
@@ -227,6 +238,9 @@ def cli(ctx, with_color):
     This script works cloning externals found in the `git_externals.json` file into `.git/externals` and
     then it uses symlinks to create the wanted directory layout.
     """
+
+    if not is_git_repo():
+        error("{} is not a git repository!".format(os.getcwd()), exitcode=2)
 
     if ctx.invoked_subcommand != 'add' and not os.path.exists(externals_json_path()):
         error("Unable to find", externals_json_path(), exitcode=1)
