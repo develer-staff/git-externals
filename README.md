@@ -40,8 +40,19 @@ $ gittify --finalize --git-server=https://git.foo.com/ &> conversion_log
 However ```gittify --help``` is useful as well.
 
 ## Git-Externals
-This script is intended for daily usage. Basically it clones the externals into .git/externals
-and then it uses symlinks to provide the wanted directory layout.
+
+### Git externals update
+
+If you want to:
+* download the externals of a freshly cloned Git repository and creates their 
+symlinks, in order to have the wanted directory layout.
+* checkout the latest version of all externals (as defined in `git_externals.json` 
+file)
+
+Run:
+```bash
+$ git externals update
+```
 
 ### Git externals status
 
