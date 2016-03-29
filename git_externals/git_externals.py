@@ -149,8 +149,9 @@ def foreach_externals_dir(pwd, callback, recursive=True, only=[]):
     context of the externals before calling it
     """
     def run_from_dir(rel_url, ext_path, refs):
-        with chdir(ext_path):
-            callback(rel_url, ext_path, refs)
+        if os.path.exists(ext_path):
+            with chdir(ext_path):
+                callback(rel_url, ext_path, refs)
     foreach_externals(root_path(), run_from_dir, recursive=recursive, only=only)
 
 
@@ -173,7 +174,7 @@ def sparse_checkout(repo_name, repo, dirs):
     return repo_name
 
 
-def is_workingtree_clean(path):
+def is_workingtree_clean(path, fail_on_empty=True):
     """
     Returns true if and only if there are no modifications to tracked files. By
     modifications it is intended additions, deletions, file removal or
@@ -182,20 +183,15 @@ def is_workingtree_clean(path):
     - tracked files are unchanged
     - untracked files are not modified anyway
     """
+    if not os.path.exists(path):
+        return not fail_on_empty
+    if fail_on_empty and not os.path.exists(path):
+        return False
     with chdir(path):
         try:
             return len([line.strip for line in git('status', '--untracked-files=no', '--porcelain').splitlines(True)]) == 0
         except GitError as err:
             error(str(err), exitcode=err.errcode)
-
-
-def clean_repo():
-    git('reset', '--hard')
-    try:
-        git('clean', '-d', '-x', '-f')
-    except GitError:
-        # ignore errors mostly due to the fact it is skipping dirs
-        pass
 
 
 def link_entries(git_externals):
@@ -283,13 +279,12 @@ def gitext_update(recursive):
     """
 
     externals_sanity_check()
-
     root = root_path()
 
     # Aggregate in a list the `clean flags` of all working trees (root + externals)
-    clean = [is_workingtree_clean(root)]
+    clean = [is_workingtree_clean(root, fail_on_empty=False)]
     foreach_externals(root,
-        lambda u,p,r: clean.append(is_workingtree_clean(p)),
+        lambda u,p,r: clean.append(is_workingtree_clean(p, fail_on_empty=False)),
         recursive=recursive)
 
     if all(clean):
