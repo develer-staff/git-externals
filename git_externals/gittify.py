@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import unicode_literals
+from __future__ import division, print_function, absolute_import
 
 import os
 import os.path
@@ -11,6 +11,7 @@ import glob
 import re
 import argparse
 import logging
+from contextlib import contextmanager
 
 try:
     from urllib.parse import urlparse
@@ -22,7 +23,14 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from .cleanup_repo import cleanup, name_of
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
+
+import click
+
+from . import cleanup_repo
 from .utils import git, svn, chdir, checkout, current_branch, SVNError, branches, \
     tags, IndentedLoggerAdapter, git_remote_branches_and_tags
 from .process_externals import parsed_externals
@@ -35,41 +43,83 @@ logging.basicConfig(format='%(levelname)8s %(asctime)s: %(message)s',
 log = IndentedLoggerAdapter(logging.getLogger(__name__))
 
 
-def get_externals(repo):
-    data = svn('propget', '--xml', '-R', 'svn:externals', repo)
+def echo(*args):
+    click.echo(' '.join(args))
+
+
+def info(*args):
+    click.secho(' '.join(args), fg='blue')
+
+
+def error(*args, **kwargs):
+    click.secho(' '.join(args), fg='red')
+    exitcode = kwargs.get('exitcode', 1)
+    if exitcode is not None:
+        sys.exit(exitcode)
+
+# Regexs
+BRANCH_RE = re.compile(r'branches/([^/]+)')
+TAG_RE = re.compile(r'tags/([^/]+)')
+
+
+@click.group()
+@click.option('--gitsvn-dir', type=click.Path(resolve_path=True), default='gitsvn')
+@click.option('--gittify-dir', type=click.Path(resolve_path=True), default='gittify')
+@click.pass_context
+def cli(ctx, gitsvn_dir, gittify_dir):
+    ctx.obj['gitsvn_dir'] = gitsvn_dir = Path(gitsvn_dir)
+    if not gitsvn_dir.exists():
+        gitsvn_dir.mkdir()
+    ctx.obj['gittify_dir'] = gittify_dir = Path(gittify_dir)
+    if not gittify_dir.exists():
+        gittify_dir.mkdir()
+
+
+def get_externals(repo, skip_relative=False):
+    data = svn('propget', '--xml', '-R', 'svn:externals', repo, universal_newlines=False)
 
     targets = ET.fromstring(data).findall('target')
 
-    return list(parsed_externals(targets))
+    externals = parsed_externals(targets)
+    if skip_relative:
+        externals = (e for e in externals if not e['location'].startswith('..'))
+    return list(externals)
 
 
 def svn_path_type(repo):
-    data = svn('info', '--xml', repo)
+    data = svn('info', '--xml', repo, universal_newlines=False)
     return ET.fromstring(data).find('./entry').get('kind')
 
 
 def last_changed_rev_from(rev, repo):
-    data = svn('info', '--xml', '-' + rev, repo)
+    data = svn('info', '--xml', '-{}'.format(rev), repo, universal_newlines=False)
 
     rev = ET.fromstring(data).find('./entry/commit').get('revision')
-    return 'r' + rev
+    return 'r{}'.format(rev)
 
 
-def svnrev_to_gitsha(rev):
-    # brute force :(
-    gitsvn_id_re = re.compile(r'(\w+) .*git-svn-id: [^@]+@{}'.format(rev[1:]), re.S)
+def svnrev_to_gitsha(repo, branch, rev, cache={}):
 
-    data = git('log', '--format="%H %b"')
+    def _svnrev_to_gitsha(rev):
+        gitsvn_id_re = re.compile(r'(\w+) .*git-svn-id: [^@]+@{}'.format(rev[1:]), re.S)
+        data = git('log', '--format="%H %b"')
 
-    return gitsvn_id_re.search(data).group(1)
+        match = gitsvn_id_re.search(data)
+        if match is not None:
+            return match.group(1)
+        else:
+            log.error("Unable to find a valid sha for revision: %s in %s", rev, os.path.basename(os.getcwd()))
+            return None
+
+    if (repo, branch, rev) in cache:
+        return cache[(repo, branch, rev)]
+    else:
+        cache[(repo, branch, rev)] = sha = _svnrev_to_gitsha(rev)
+        return sha
 
 
 def gitsvn_url():
     return git('svn', 'info', '--url').strip()
-
-
-BRANCH_RE = re.compile(r'branches/([^/]+)')
-TAG_RE = re.compile(r'tags/([^/]+)')
 
 
 def svnext_to_gitext(ext, config):
@@ -112,21 +162,8 @@ def svnext_to_gitext(ext, config):
 
         gitext['ref'] = None
         if ext['rev'] is not None:
-            # svn rev -> git sha -> git tag
             rev = 'r' + ext['rev'] if ext['rev'][0] != 'r' else ext['rev']
-
-            svn_ext_repo = loc[:-len(source)] if source != '.' else loc
-            svn_repo = posixpath.join(config['svn_server'], svn_ext_repo)
-            changed_rev = last_changed_rev_from(rev, svn_repo)
-
-            with chdir(os.path.join('..', ext_repo + GITSVN_EXT)):
-                with checkout(gitext['branch'], back_to=current_branch()):
-                    ref = git('svn', 'find-rev', changed_rev).strip()
-                    if ref == '':
-                        ref = svnrev_to_gitsha(changed_rev)
-                    if git('tag', '-l', rev).strip() == '':
-                        git('tag', rev, ref)
-                    gitext['ref'] = rev
+            gitext['ref'] = rev
 
     return gitext
 
@@ -162,26 +199,20 @@ def group_gitexternals(exts):
     return ret, mismatched_refs
 
 
-def write_extfile(exts, config):
-    gitexts = []
-    for ext in exts:
-        try:
-            gitext = svnext_to_gitext(ext, config)
-            gitexts.append(gitext)
-        except SVNError:
-            if not config['ignore_not_found']:
-                raise
+def write_extfile(gitexts, externals_filename, mismatched_refs_filename):
     gitexts, mismatched = group_gitexternals(gitexts)
 
-    with open(config['externals_filename'], 'wt') as fd:
+    with open(externals_filename, 'wt') as fd:
         json.dump(gitexts, fd, indent=4, sort_keys=True)
 
     if len(mismatched) > 0:
-        with open(config['mismatched_refs_filename'], 'wt') as fp:
+        with open(mismatched_refs_filename, 'wt') as fp:
             json.dump(mismatched, fp, indent=4, sort_keys=True)
 
 
-def extract_repo_name(remote_name, super_repos):
+def extract_repo_name(remote_name, super_repos=None):
+    super_repos = super_repos or []
+
     if remote_name[0] == '/':
         remote_name = remote_name[1:]
 
@@ -199,11 +230,15 @@ def extract_repo_name(remote_name, super_repos):
     return remote_name[:j]
 
 
-def extract_repo_root(repo):
+def extract_repo_root(repo, cache={}):
+    if repo in cache:
+        return cache[repo]
+
     output = svn('info', '--xml', repo)
 
     rootnode = ET.fromstring(output)
-    return rootnode.find('./entry/repository/root').text
+    cache[repo] = root = rootnode.find('./entry/repository/root').text
+    return root
 
 
 def extract_repo_path(path, repo_name):
@@ -272,8 +307,8 @@ def remote_rm(remote):
         git('remote', 'rm', remote)
 
 
-def gittify_branch(gitsvn_repo, branch_name, obj, config):
-    log.info('Gittifying branch {}'.format(branch_name))
+def gittify_branch(gitsvn_repo, branch_name, obj, config, mode='branch', finalize=False):
+    log.info('Gittifying {} {} [{}]'.format(mode, branch_name, 'finalizze' if finalize else 'prepare'))
 
     with chdir(os.path.join('..', gitsvn_repo)):
         with checkout(branch_name):
@@ -281,11 +316,12 @@ def gittify_branch(gitsvn_repo, branch_name, obj, config):
             repo = gitsvn_url()
 
     with checkout(branch_name, obj):
-        with open('.gitignore', 'wt') as fp:
-            fp.write(git_ignore)
-        git('add', '.gitignore')
-        git('commit', '-m', 'gittify: convert svn:ignore to .gitignore',
-            '--author="gittify <>"')
+        if finalize:
+            with open('.gitignore', 'wt') as fp:
+                fp.write(git_ignore)
+            git('add', '.gitignore')
+            git('commit', '-m', 'gittify: convert svn:ignore to .gitignore',
+                '--author="gittify <>"')
 
         externals = get_externals(repo)
 
@@ -306,85 +342,104 @@ def gittify_branch(gitsvn_repo, branch_name, obj, config):
                             if gittified_name not in gittified_externals:
                                 log.info('{} is a SVN external, however it has not been found!'.format(gittified_name))
                                 continue
-                        ext_to_write.append(ext)
+                        try:
+                            gitext = svnext_to_gitext(ext, config)
+                        except SVNError:
+                            if not config['ignore_not_found']:
+                                raise
+                        ext_to_write.append(gitext)
 
-                write_extfile(ext_to_write, config)
-                git('add', config['externals_filename'])
-                if os.path.exists(config['mismatched_refs_filename']):
-                    git('add', config['mismatched_refs_filename'])
-                git('commit', '-m',
-                    'gittify: create {} file'.format(config['externals_filename']),
-                    '--author="gittify <>"')
+                if finalize:
+                    # If tagging, not ready to write
+                    write_extfile(ext_to_write, config)
+                    git('add', config['externals_filename'])
+                    if os.path.exists(config['mismatched_refs_filename']):
+                        git('add', config['mismatched_refs_filename'])
+                    git('commit', '-m',
+                        'gittify: create {} file'.format(config['externals_filename']),
+                        '--author="gittify <>"')
 
 
-def gittify(repo, config):
+def gittify(repo, config, checkout_branches=False, finalize=False):
     repo_name = os.path.splitext(repo)[0]
 
     git_repo = repo_name + GIT_EXT
     gittified = set([repo_name])
-
-    if os.path.exists(git_repo):
-        log.info('{} already gittified'.format(repo_name))
-        return gittified
-
     gitsvn_repo = repo_name + GITSVN_EXT
 
     # clone first in a working copy, because we need to perform checkouts, commit, etc...
-    log.info('Cloning into final git repo {}'.format(git_repo))
-    git('clone', gitsvn_repo, git_repo)
+    if not os.path.exists(git_repo):
+        log.info('Cloning into final git repo {}'.format(git_repo))
+        git('clone', gitsvn_repo, git_repo)
 
     with chdir(git_repo):
-        for branch in git_remote_branches_and_tags()[0]:
-            with checkout(name_of(branch), branch):
-                pass
+        if checkout_branches:
+            for branch in git_remote_branches_and_tags()[0]:
+                with checkout(cleanup_repo.name_of(branch), branch):
+                    pass
 
         log.info('Gittifying branches...')
         for branch in branches():
-            gittify_branch(gitsvn_repo, branch, branch, config)
+            gittify_branch(gitsvn_repo, branch, branch, config, finalize=finalize)
 
         log.info('Gittifying tags...')
         for tag in tags():
-            gittify_branch(gitsvn_repo, tag, tag, config)
+            gittify_branch(gitsvn_repo, tag, tag, config, mode='tag', finalize=finalize)
 
-            # retag in case the dump was committed
-            git('tag', '-d', tag)
-            git('tag', tag, tag)
+            if finalize:
+                # retag in case the dump was committed
+                git('tag', '-d', tag)
+                git('tag', tag, tag)
 
-            git('branch', '-D', tag)
+                git('branch', '-D', tag)
 
-        remote_rm('origin')
+        if finalize:
+            remote_rm('origin')
 
 
-def clone(repo, config):
-    repo_name = posixpath.basename(repo)
+@cli.command('clone')
+@click.argument('root', metavar='SVNROOT')
+@click.argument('path', metavar='REPOPATH')
+@click.argument('authors-file', type=click.Path(exists=True, resolve_path=True),
+                metavar='USERMAP')
+@click.option('--dry-run', is_flag=True)
+@click.pass_context
+def clone(ctx, root, path, authors_file, dry_run):
+    remote_repo = posixpath.join(root, path)
+    info('Cloning {}'.format(remote_repo))
+    repo_name = posixpath.basename(remote_repo)
+    gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
 
-    gitsvn_repo = repo_name + GITSVN_EXT
+    if not gitsvn_repo.parent.exists():
+        if dry_run:
+            echo('mkdir %s' % gitsvn_repo.parent)
+        else:
+            gitsvn_repo.parent.mkdir()
 
-    if os.path.exists(gitsvn_repo):
-        log.info('{} already cloned'.format(repo_name))
+    if gitsvn_repo.exists():
+        echo('{} already cloned'.format(repo_name))
         return
 
-    remote_repo = posixpath.join(config['svn_server'], repo)
+    args = ['svn', 'clone', '--prefix=origin/']
+
+    if authors_file is not None:
+        args += ['-A', authors_file]
+
     try:
         layout_opts = get_layout_opts(remote_repo)
+        args += layout_opts
     except SVNError as err:
-        if config['ignore_not_found']:
-            log.info('Ignoring error {}'.format(err))
-            return
-        raise
+        error('Error {} in {}'.format(err, remote_repo))
 
-    authors_file_opt = []
-    if config['authors_file'] is not None:
-        authors_file_opt = ['-A', config['authors_file']]
-    args = ['svn', 'clone', '--prefix=origin/'] + authors_file_opt + \
-        layout_opts + [remote_repo, gitsvn_repo]
+    args += [remote_repo, str(gitsvn_repo)]
 
-    log.info('Cloning {}'.format(remote_repo))
-    log.info('Standard layout: {}'.format(len(layout_opts) == 3))
-    log.info(' '.join(args))
+    echo(' '.join(map(str, args)))
 
-    git(*args)
-    cleanup(gitsvn_repo, False, remote_repo, log=log)
+    if not dry_run:
+        git(*args)
+
+    """
+    cleanup_repo.cleanup(gitsvn_repo, False, remote_repo, log=log)
 
     with chdir(gitsvn_repo):
         log.info('Cloning externals in branches...')
@@ -394,6 +449,199 @@ def clone(repo, config):
         log.info('Cloning externals in tags...')
         for tag in tags():
             clone_branch(tag, tag, config)
+    """
+
+
+@cli.command('fetch')
+@click.argument('root', metavar='SVNROOT')
+@click.argument('path', metavar='REPOPATH')
+@click.argument('authors-file', type=click.Path(exists=True, resolve_path=True),
+                metavar='USERMAP')
+@click.option('--dry-run', is_flag=True)
+@click.pass_context
+def fetch(ctx, root, path, authors_file, dry_run, git=git, checkout=checkout):
+    remote_repo = posixpath.join(root, path)
+    info('Fetching {}'.format(remote_repo))
+    repo_name = posixpath.basename(remote_repo)
+    gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
+    with chdir(str(gitsvn_repo)):
+        if dry_run:
+            git = echo
+            @contextmanager
+            def checkout(x):
+                echo('checkout', x)
+                yield
+        git('svn', 'fetch', '--all', '-A', authors_file)
+        for branch in branches():
+            with checkout(branch):
+                git('svn', 'rebase', '-A', authors_file)
+
+
+@cli.command('cleanup')
+@click.argument('root', metavar='SVNROOT')
+@click.argument('path', metavar='REPOPATH')
+@click.option('--dry-run', is_flag=True)
+@click.pass_context
+def cleanup(ctx, root, path, authors_file, dry_run, git=git, checkout=checkout):
+    remote_repo = posixpath.join(root, path)
+    info('Cleaning {}'.format(remote_repo))
+    repo_name = posixpath.basename(remote_repo)
+    gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
+    class log2click(object):
+        @staticmethod
+        def info(*args):
+            echo(*args)
+        @staticmethod
+        def warning(*args):
+            info(*args)
+    if dry_run:
+        echo('cleanup', str(gitsvn_repo), remote=remote_repo)
+    else:
+        cleanup_repo.cleanup(str(gitsvn_repo), remote=remote_repo, log=log2click)
+
+
+@cli.command('finalize')
+@click.argument('root', metavar='SVNROOT')
+@click.option('--ignore-not-found', is_flag=True)
+@click.option('--externals-filename', default='git_externals.json')
+@click.option('--mismatched-refs-filename', default='mismatched_ext.json')
+@click.option('--dry-run', is_flag=True)
+@click.pass_context
+def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_refs_filename):
+    gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
+    git_repo = ctx.obj['gittify_dir'] / (path + GIT_EXT)
+    info('Finalize {}'.format(git_repo))
+    repos = {}
+    with chdir(str(ctx.obj['gitsvn_dir'])):
+        for path in glob.glob('*.' + GITSVN_EXT):
+            repos[path] = tag_externals(gitsvn_repo, git_repo, root, path, ignore_not_found)
+        commit_externals(repos, externals_filename, mismatched_refs_filename)
+
+
+def tag_externals(gitsvn_repo, git_repo, root, path, ignore_not_found,
+                  dry_run, git=git, checkout=checkout):
+
+    if dry_run:
+        git = echo
+        @contextmanager
+        def checkout(x, target=''):
+            echo('checkout', x, target)
+            yield
+
+    # clone first in a working copy, because we need to perform checkouts, commit, etc...
+    if not git_repo.exists():
+        if not git_repo.parent.exists():
+            echo('git_repo.parent', str(git_repo.parent))
+            git_repo.parent.mkdir()
+        echo('Cloning into final git repo {}'.format(git_repo))
+        git('clone', str(gitsvn_repo), str(git_repo))
+
+    config = {'super_repos': None,
+              'svn_server': root,
+              'git_server': '',
+              'basedir': str(ctx.obj['gitsvn_dir']),
+              }
+
+    def _rev_normalize(rev):
+        if not rev.startswith('r'):
+            return 'r' + rev
+        return rev
+
+    def _svnrev2gitsha(gitsvn_repo, branch_name, revision):
+        with chdir(str(gitsvn_repo)):
+            with checkout(branch_name, back_to=current_branch()):
+                pass
+
+    def _iter_git_externals(gitsvn_repo, branch_name):
+        with chdir(str(gitsvn_repo)):
+            with checkout(branch_name):
+                git_ignore = git('svn', 'show-ignore')
+                svn_url = gitsvn_url()
+
+        with checkout(branch_name, branch_name):
+            for ext in get_externals(svn_url, skip_relative=True):
+                if ext['rev'] is not None:
+                    try:
+                        yield ext, svnext_to_gitext(ext, config), git_ignore
+                    except SVNError:
+                        if not ignore_not_found:
+                            raise
+
+    def _tag_externals(ext, gitext):
+        if ext['rev'] is None:
+            return
+        ext_path = ext['location'].strip('/')
+        ext_repo = posixpath.join(root, ext_path)
+        rev = _rev_normalize(ext['rev'])
+        changed_rev = last_changed_rev_from(rev, ext_repo)
+        # convert the svn revision in git sha inside the gitsvn clone
+        with chdir(str(ctx.obj['gitsvn_dir'] / (ext_path + GITSVN_EXT))):
+            ref = git('svn', 'find-rev', changed_rev).strip()
+            if ref == '':
+                # brute force :(
+                ref = svnrev_to_gitsha(ext_repo, ext['branch'], changed_rev)
+        # if something is found, create a placeholder tag in the gittify folder
+        if ref is not None:
+            assert Path('.') == git_repo, "%s != %s" % (Path('.').resolve(), git_repo)
+            if git('tag', '-l', rev).strip() == '':
+                git('tag', rev, ref)
+
+    externals = {'branches': defaultdict(list),
+                 'tags': defaultdict(list)}
+
+    with chdir(str(git_repo)):
+        echo('Tagging externals in branches...')
+        for branch in branches():
+            for ext, gitext, ignores in _iter_git_externals(gitsvn_repo, branch):
+                _tag_externals(ext, gitext)
+                externals['branches'][branch] += [(gitext, ignores)]
+
+    with chdir(str(git_repo)):
+        echo('Tagging externals in tags...')
+        for tag in tags():
+            for ext, gitext, ignores in _iter_git_externals(gitsvn_repo, tag):
+                _tag_externals(ext, gitext)
+                externals['tags'][tag] += [(gitext, ignores)]
+
+    return externals
+
+
+def commit_externals(repos, externals_filename, mismatched_refs_filename,
+                     dry_run, git=git, checkout=checkout):
+
+    def add_ignores(git_ignore):
+        with open('.gitignore', 'wt') as fp:
+            fp.write(git_ignore)
+        git('add', '.gitignore')
+        git('commit', '-m', 'gittify: convert svn:ignore to .gitignore',
+            '--author="gittify <>"')
+
+    def add_extfile(ext_to_write):
+        write_extfile(ext_to_write, externals_filename, mismatched_refs_filename)
+        git('add', externals_filename)
+        if os.path.exists(mismatched_refs_filename):
+            git('add', mismatched_refs_filename)
+        git('commit', '-m',
+            'gittify: create {} file'.format(externals_filename),
+            '--author="gittify <>"')
+
+    if dry_run:
+        git = echo
+        @contextmanager
+        def checkout(x, target=''):
+            echo('checkout', x, target)
+            yield
+        def add_extfile(*args):
+            echo('add_extfile')
+        def add_ignores(*args):
+            echo('add_ignores')
+
+    for git_repo, externals in repos.items():
+        with chdir(str(git_repo)):
+            for branch, (ext_to_write, ignores) in externals['branches'].items():
+                with checkout(branch, branch):
+                    add_ignores(ignores)
+                    add_extfile(ext_to_write)
 
 
 def clone_branch(branch_name, obj, config):
@@ -437,7 +685,7 @@ def gitsvn_fetch_all(config):
 
     remote_repo = posixpath.join(root, repo_name)
 
-    cleanup('.', False, remote_repo, log=log)
+    cleanup_repo.cleanup('.', False, remote_repo, log=log)
 
 
 def parse_args():
@@ -462,10 +710,13 @@ def parse_args():
                         help='A SVN super repo is not a real repo but it is a container of repos')
     parser.add_argument('-A', '--authors-file', default=None,
                         help='Authors file to map svn users to git')
+    parser.add_argument('-n', '--no-authors-file', default=False, action='store_true',
+                        help='Continue without users mapping file')
 
     args = parser.parse_args()
 
     return args.repos, {
+        'basedir': os.getcwd(),
         'git_server': args.git_server,
         'externals_filename': args.filename,
         'mismatched_refs_filename': args.mismatched_filename,
@@ -475,33 +726,53 @@ def parse_args():
         'fetch': args.fetch,
         'super_repos': args.super_repos,
         'authors_file': None if args.authors_file is None else os.path.abspath(args.authors_file),
+        'no_authors_file': args.no_authors_file,
     }
 
 
-def main():
+def old_main():
     repos, config = parse_args()
 
     for r in repos:
+        log.info("---- Cloning %s ----", r)
         root = extract_repo_root(r)
         repo = r[len(root) + 1:]
         config['svn_server'] = root
         clone(repo, config)
 
     if config['fetch']:
+        if config['authors_file'] is None:
+            log.warn('Fetching without authors-file')
+            if not config['no_authors_file']:
+                log.error('Provide --no-authors-file to continue without user mapping')
+                sys.exit(2)
         for gitsvn_repo in gitsvn_cloned():
             with chdir(gitsvn_repo):
-                log.info('Fetching all in {}'.format(gitsvn_repo))
+                log.info('---- Fetching all in {} ----'.format(gitsvn_repo))
                 gitsvn_fetch_all(config)
 
     if config['finalize']:
         for gitsvn_repo in gitsvn_cloned():
+            log.info("---- Pre-Finalize %s ----", gitsvn_repo)
             with chdir(gitsvn_repo):
                 config['svn_server'] = extract_repo_root(gitsvn_url())
 
             gittify(gitsvn_repo, config)
 
+        for gitsvn_repo in gitsvn_cloned():
+            log.info("---- Finalize %s ----", gitsvn_repo)
+            with chdir(gitsvn_repo):
+                config['svn_server'] = extract_repo_root(gitsvn_url())
+
+            gittify(gitsvn_repo, config, finalize=True)
+
     if config['rm_gitsvn']:
         remove_gitsvn_repos()
+
+
+def main():
+    cli(obj={})
+
 
 if __name__ == '__main__':
     main()

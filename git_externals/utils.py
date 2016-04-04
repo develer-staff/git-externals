@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import print_function, unicode_literals
+from __future__ import print_function
 
 import subprocess
 import os
@@ -13,14 +13,14 @@ from contextlib import contextmanager
 
 class ProgError(Exception):
     def __init__(self, prog='', errcode=1, errmsg=''):
-        super(ProgError, self).__init__(prog + ' ' + errmsg)
+        super(ProgError, self).__init__(u'{} {}'.format(prog, errmsg))
         self.prog = prog
         self.errcode = errcode
 
     def __str__(self):
-        name = '{}Error'.format(self.prog.title())
+        name = u'{}Error'.format(self.prog.title())
         msg = super(ProgError, self).__str__()
-        return '<{}: {} {}>'.format(name, self.errcode, msg)
+        return u'<{}: {} {}>'.format(name, self.errcode, msg)
 
 
 class GitError(ProgError):
@@ -37,11 +37,12 @@ class CommandError(ProgError):
         super(CommandError, self).__init__(prog=cmd, **kwargs)
 
 
-def svn(*args):
+def svn(*args, **kwargs):
+    universal_newlines = kwargs.get('universal_newlines', True)
     p = subprocess.Popen(['svn'] + list(args),
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
-                         universal_newlines=True)
+                         universal_newlines=universal_newlines)
     output, err = p.communicate()
 
     if p.returncode != 0:
@@ -141,12 +142,12 @@ def header(msg):
 
     print('')
     print(banner)
-    print('{:^78}'.format(msg))
+    print(u'{:^78}'.format(msg))
     print(banner)
 
 
 def print_msg(msg):
-    print('  {}'.format(msg))
+    print(u'  {}'.format(msg))
 
 
 if not sys.platform.startswith('win32'):
