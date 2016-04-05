@@ -36,6 +36,7 @@ setup(
             'gittify-cleanup = git_externals.cleanup_repo:main',
             'svn-externals-info = git_externals.process_externals:main',
             'gittify = git_externals.gittify:main',
+            'gittify-gen = git_externals.makefiles:cli',
         ],
     },
     author=__author__,

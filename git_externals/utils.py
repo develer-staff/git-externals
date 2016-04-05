@@ -8,6 +8,7 @@ import sys
 import logging
 import re
 
+from subprocess import check_call
 from contextlib import contextmanager
 
 
@@ -109,16 +110,19 @@ def git_remote_branches_and_tags():
 
 
 @contextmanager
-def checkout(branch, remote=None, back_to='master'):
+def checkout(branch, remote=None, back_to='master', force=False):
     brs = set(branches())
 
+    cmd = ['git', 'checkout']
+    if force:
+        cmd += ['--force']
     # if remote is not None -> create local branch from remote
     if remote is not None and branch not in brs:
-        git('checkout', '-b', branch, remote)
+        check_call(cmd + ['-b', branch, remote])
     else:
-        git('checkout', branch)
+        check_call(cmd + [branch])
     yield
-    git('checkout', back_to)
+    check_call(cmd + [back_to])
 
 
 @contextmanager
