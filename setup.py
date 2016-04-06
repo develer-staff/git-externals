@@ -29,7 +29,8 @@ setup(
     description='utility to manage svn externals',
     long_description='',
     packages=['git_externals'],
-    install_requires=['click>=6.0'],
+    install_requires=['click',
+                      'pathlib'],
     entry_points={
         'console_scripts': [
             'git-externals = git_externals.git_externals:cli',
