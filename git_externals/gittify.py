@@ -440,7 +440,7 @@ def clone(ctx, root, path, authors_file, dry_run):
         echo('{} already cloned'.format(repo_name))
         return
 
-    args = ['svn', 'clone', '--prefix=origin/']
+    args = ['git', 'svn', 'clone', '--prefix=origin/']
 
     if authors_file is not None:
         args += ['-A', authors_file]
@@ -456,7 +456,7 @@ def clone(ctx, root, path, authors_file, dry_run):
     echo(' '.join(map(str, args)))
 
     if not dry_run:
-        git(*args)
+        check_call(*args)
 
     """
     cleanup_repo.cleanup(gitsvn_repo, False, remote_repo, log=log)
