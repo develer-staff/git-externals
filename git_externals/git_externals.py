@@ -116,7 +116,7 @@ def dump_gitexts(externals):
         json.dump(externals, fp, sort_keys=True, indent=4)
 
 
-def foreach_externals(pwd, callback, recursive=True, only=[]):
+def foreach_externals(pwd, callback, recursive=True, only=()):
     """
     Iterates over externals, starting from directory pwd, recursively or not
     callback is called for each externals with the following arguments:
@@ -129,8 +129,7 @@ def foreach_externals(pwd, callback, recursive=True, only=[]):
     externals = load_gitexts(pwd)
     def filter_ext():
         def take_external(url, path):
-            for expr in only:
-                return expr in url or expr in path
+            return any((expr in url or expr in path) for expr in only)
         def take_all(*args):
             return True
         return take_external if len(only) else take_all
