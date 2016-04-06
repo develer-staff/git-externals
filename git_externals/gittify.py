@@ -456,7 +456,7 @@ def clone(ctx, root, path, authors_file, dry_run):
     echo(' '.join(map(str, args)))
 
     if not dry_run:
-        check_call(*args)
+        check_call(args)
 
     """
     cleanup_repo.cleanup(gitsvn_repo, False, remote_repo, log=log)
