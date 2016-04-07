@@ -610,9 +610,6 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
             echo('.. searching in tag %s ...' % tag)
             _svn2git_metadata(gitsvn_repo, tag, tag=tag)
 
-    with chdir(str(git_repo)):
-        remote_rm('origin')
-
 
 def clone_branch(branch_name, obj, config):
     with checkout(branch_name, obj):
