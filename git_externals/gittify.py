@@ -571,44 +571,26 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
         check_call(['git', 'commit', '-m', 'gittify: convert svn:ignore to .gitignore',
                     '--author="gittify <>"'])
 
-    def add_extfile(ext_to_write, tag=None):
+    def add_extfile(ext_to_write):
         write_extfile(ext_to_write, externals_filename, mismatched_refs_filename)
         check_call(['git', 'add', externals_filename])
         if os.path.exists(mismatched_refs_filename):
             check_call(['git', 'add', mismatched_refs_filename])
         check_call(['git', 'commit', '-m', 'gittify: create {} file'.format(externals_filename),
                     '--author="gittify <>"'])
-        if tag is not None:
-            # retag in case the dump was committed
-            check_call(['git', 'tag', '-d', tag])
-            check_call(['git', 'tag', tag, tag])
 
-    def _svn2git_metadata(gitsvn_repo, branch_name, tag=None):
-        with chdir(str(gitsvn_repo)):
-            with checkout(branch_name):
-                git_ignore = git('svn', 'show-ignore')
-                svn_url = gitsvn_url()
+    with chdir(str(gitsvn_repo)):
+        git_ignore = git('svn', 'show-ignore')
+        svn_url = gitsvn_url()
 
+    with chdir(str(git_repo)):
         externals = []
         check_call(['git', 'stash'])
-        with checkout(branch_name, branch_name, force=True):
-            for ext in get_externals(svn_url, skip_relative=True):
-                echo('... processing external %s ...' % ext['location'])
-                externals += [svnext_to_gitext(ext, prefix(config, ext['location']))]
-            add_ignores(git_ignore)
-            add_extfile(externals, tag=tag)
-
-    with chdir(str(git_repo)):
-        echo('Searching externals in branches...')
-        for branch in branches():
-            echo('.. searching in branch %s ...' % branch)
-            _svn2git_metadata(gitsvn_repo, branch)
-
-    with chdir(str(git_repo)):
-        echo('Searching externals in tags...')
-        for tag in tags():
-            echo('.. searching in tag %s ...' % tag)
-            _svn2git_metadata(gitsvn_repo, tag, tag=tag)
+        for ext in get_externals(svn_url, skip_relative=True):
+            echo('... processing external %s ...' % ext['location'])
+            externals += [svnext_to_gitext(ext, prefix(config, ext['location']))]
+        add_ignores(git_ignore)
+        add_extfile(externals)
 
 
 def clone_branch(branch_name, obj, config):
