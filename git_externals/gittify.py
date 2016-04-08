@@ -499,11 +499,11 @@ def fetch(ctx, root, path, authors_file, dry_run, git=git, checkout=checkout, ch
 
 
 @cli.command('cleanup')
-@click.argument('path', metavar='REPOPATH')
+@click.argument('repo', metavar='REPOPATH', default='.', type=click.Path(exists=True, resolve_path=True))
 @click.option('--dry-run', is_flag=True)
 @click.pass_context
-def cleanup(ctx, path, dry_run, check_call=check_call):
-    gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
+def cleanup(ctx, repo, dry_run, check_call=check_call):
+    gitsvn_repo = Path(repo)
     info('Cleaning {}'.format(gitsvn_repo))
 
     if dry_run:
