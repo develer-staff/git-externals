@@ -71,15 +71,15 @@ TAG_RE = re.compile(r'tags/([^/]+)')
 
 @click.group()
 @click.option('--gitsvn-dir', type=click.Path(resolve_path=True), default='gitsvn')
-@click.option('--gittify-dir', type=click.Path(resolve_path=True), default='gittify')
+@click.option('--finalize-dir', type=click.Path(resolve_path=True), default='finalize')
 @click.pass_context
-def cli(ctx, gitsvn_dir, gittify_dir):
+def cli(ctx, gitsvn_dir, finalize_dir):
     ctx.obj['gitsvn_dir'] = gitsvn_dir = Path(gitsvn_dir)
     if not gitsvn_dir.exists():
         gitsvn_dir.mkdir()
-    ctx.obj['gittify_dir'] = gittify_dir = Path(gittify_dir)
-    if not gittify_dir.exists():
-        gittify_dir.mkdir()
+    ctx.obj['finalize_dir'] = finalize_dir = Path(finalize_dir)
+    if not finalize_dir.exists():
+        finalize_dir.mkdir()
 
 
 def get_externals(repo, skip_relative=False):
@@ -538,7 +538,7 @@ def cleanup(ctx, repo, dry_run, check_call=check_call):
 def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_refs_filename,
              dry_run, git=git, checkout=checkout, check_call=check_call):
     gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
-    git_repo = ctx.obj['gittify_dir'] / (path + GIT_EXT)
+    git_repo = ctx.obj['finalize_dir'] / (path + GIT_EXT)
     info('Finalize {}'.format(git_repo))
 
     if dry_run:
