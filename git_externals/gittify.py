@@ -592,18 +592,23 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
         call(['git', 'commit', '-m', 'gittify: create {} file'.format(externals_filename),
               '--author="gittify <>"'])
 
-    with chdir(str(gitsvn_repo)):
-        git_ignore = git('svn', 'show-ignore')
-        svn_url = gitsvn_url()
+    echo('Searching externals in branches...')
+    for branch in branches():
+        echo('.. searching in branch %s ...' % branch)
+        with chdir(str(gitsvn_repo)):
+            with checkout(branch):
+                git_ignore = git('svn', 'show-ignore')
+                svn_url = gitsvn_url()
 
-    with chdir(str(git_repo)):
-        externals = []
-        check_call(['git', 'stash'])
-        for ext in get_externals(svn_url, skip_relative=True):
-            echo('... processing external %s ...' % ext['location'])
-            externals += [svnext_to_gitext(ext, prefix(config, ext['location']))]
-        add_ignores(git_ignore)
-        add_extfile(externals)
+        with chdir(str(git_repo)):
+            externals = []
+            check_call(['git', 'stash'])
+            with checkout(branch):
+                for ext in get_externals(svn_url, skip_relative=True):
+                    echo('... processing external %s ...' % ext['location'])
+                    externals += [svnext_to_gitext(ext, prefix(config, ext['location']))]
+                add_ignores(git_ignore)
+                add_extfile(externals)
 
 
 def clone_branch(branch_name, obj, config):
