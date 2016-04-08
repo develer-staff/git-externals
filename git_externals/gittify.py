@@ -12,7 +12,7 @@ import re
 import sys
 import argparse
 import logging
-from subprocess import check_call
+from subprocess import check_call, check_output
 from collections import defaultdict
 from contextlib import contextmanager
 
@@ -499,26 +499,32 @@ def fetch(ctx, root, path, authors_file, dry_run, git=git, checkout=checkout, ch
 
 
 @cli.command('cleanup')
-@click.argument('root', metavar='SVNROOT')
 @click.argument('path', metavar='REPOPATH')
 @click.option('--dry-run', is_flag=True)
 @click.pass_context
-def cleanup(ctx, root, path, dry_run, git=git, checkout=checkout):
-    remote_repo = posixpath.join(root, path)
-    info('Cleaning {}'.format(remote_repo))
-    repo_name = posixpath.basename(remote_repo)
+def cleanup(ctx, path, dry_run, check_call=check_call):
     gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
-    class log2click(object):
-        @staticmethod
-        def info(*args):
-            echo(*args)
-        @staticmethod
-        def warning(*args):
-            info(*args)
+    info('Cleaning {}'.format(gitsvn_repo))
+
     if dry_run:
-        echo('cleanup', str(gitsvn_repo), remote=remote_repo)
-    else:
-        cleanup_repo.cleanup(str(gitsvn_repo), remote=remote_repo, log=log2click)
+        def check_call(command):
+            click.secho('check_call({})'.format(command), fg='red')
+
+    with chdir(str(gitsvn_repo)):
+        tags = check_output(['git', 'for-each-ref',
+                             '--format', '%(refname:short) %(objectname)',
+                             'refs/remotes/origin/tags'],
+                             universal_newlines=True).strip().split('\n')
+        import q
+        q(tags)
+        for branch, ref in (tag.strip().split() for tag in tags):
+            q(branch, ref)
+            tag_name = os.path.basename(branch)
+            body = check_output(['git', 'log', '-1', '--format=format:%B', ref], universal_newlines=True)
+            parent = check_output(['git', 'rev-parse', '{}^'.format(ref)], universal_newlines=True)
+            click.secho('ref={ref} parent={parent} tag_name={tag_name} body={body}'.format(**locals()), fg='blue')
+            check_call(['git', 'tag', '-a', '-m', body, tag_name, '{}^'.format(ref)])
+            check_call(['git', 'branch', '-r', '-d', branch])
 
 
 @cli.command('finalize')
