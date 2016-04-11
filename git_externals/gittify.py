@@ -575,7 +575,7 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
         with open('.gitignore', 'wt') as fp:
             fp.write(git_ignore)
         check_call(['git', 'add', '.gitignore'])
-        call(['git', 'commit', '-m', 'gittify: convert svn:ignore to .gitignore SVNSILENT',
+        call(['git', 'commit', '-m', 'gittify: convert svn:ignore to .gitignore',
               '--author="gittify <>"'])
 
     def add_extfile(ext_to_write):
@@ -583,7 +583,7 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
         check_call(['git', 'add', externals_filename])
         if os.path.exists(mismatched_refs_filename):
             check_call(['git', 'add', mismatched_refs_filename])
-        call(['git', 'commit', '-m', 'gittify: create {} file SVNSILENT'.format(externals_filename),
+        call(['git', 'commit', '-m', 'gittify: create {} file'.format(externals_filename),
               '--author="gittify <>"'])
 
     with chdir(str(gitsvn_repo)):
