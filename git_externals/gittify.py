@@ -530,7 +530,7 @@ def cleanup(ctx, repo, dry_run, check_call=check_call):
 
         for branch, ref in (branch.strip().split() for branch in branches if '/tags/' not in branch and '/trunk' not in branch):
             branch_name = os.path.basename(branch)
-            check_call(['git', 'checkout', '-b', branch_name, branch])
+            check_call(['git', 'checkout', '--force', '-b', branch_name, branch])
         check_call(['git', 'checkout', 'master'])
 
 
@@ -593,14 +593,14 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
               '--author="gittify <>"'])
 
     echo('Searching externals in branches...')
-    for branch in branches():
-        echo('.. searching in branch %s ...' % branch)
-        with chdir(str(gitsvn_repo)):
-            with checkout(branch):
-                git_ignore = git('svn', 'show-ignore')
-                svn_url = gitsvn_url()
+    with chdir(str(git_repo)):
+        for branch in branches():
+            echo('.. searching in branch %s ...' % branch)
+            with chdir(str(gitsvn_repo)):
+                with checkout(branch):
+                    git_ignore = git('svn', 'show-ignore')
+                    svn_url = gitsvn_url()
 
-        with chdir(str(git_repo)):
             externals = []
             check_call(['git', 'stash'])
             with checkout(branch):
