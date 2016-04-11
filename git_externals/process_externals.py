@@ -127,18 +127,18 @@ def unique_externals(targets, filterf=lambda x: True):
     return {v["location"]: v for v in parsed_externals(targets) if filterf(v)}.values()
 
 
-def parsed_externals(targets):
+def parsed_externals(targets, root=SVNROOT):
     for target in targets:
-        for item in get_externals_from_target(target):
+        for item in get_externals_from_target(target, root):
             yield item
 
 
-def get_externals_from_target(target):
+def get_externals_from_target(target, root=SVNROOT):
     prop = target.find("property")
 
     for external in [l for l in prop.text.split("\n") if l.strip()]:
         ret = parse_external(external)
-        ret["target"] = target.get("path").replace(SVNROOT, "")
+        ret["target"] = target.get("path").replace(root, "")
 
         yield ret
 
