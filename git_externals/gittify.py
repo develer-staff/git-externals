@@ -298,8 +298,9 @@ def extract_repo_path(path, repo_name):
     return remote_dir
 
 
-def get_layout_opts(repo):
-    entries = set(svn('ls', repo).splitlines())
+def get_layout_opts(repo=None, entries=None):
+    if entries is None:
+        entries = set(svn('ls', repo).splitlines())
 
     opts = []
 
