@@ -381,7 +381,10 @@ def gitext_up(recursive, entries=None):
 
                     if git_externals[ext_repo]['ref'] is not None:
                         echo('Checking out commit', git_externals[ext_repo]['ref'])
-                        git('checkout', git_externals[ext_repo]['ref'])
+                        ref = git_externals[ext_repo]['ref']
+                        if git_externals[ext_repo]['ref'].startswith('svn:'):
+                            ref = git('log', '--grep', 'git-svn-id:.*@%s' % ref.strip('svn:r'), '--format=%H').strip()
+                        git('checkout', ref)
 
     link_entries(git_externals)
 
