@@ -296,22 +296,25 @@ def gitext_update(recursive):
 
 def externals_sanity_check():
     """Check that we are not trying to track various refs of the same external repo"""
-    ExtItem = namedtuple('ExtItem', ['branch', 'ref'])
+    ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path'])
     registry = defaultdict(set)
+    root = root_path()
 
     def registry_add(url, path, ext):
-        registry[url].add(ExtItem(ext['branch'], ext['ref']))
+        registry[url].add(ExtItem(ext['branch'], ext['ref'], path))
 
-    foreach_externals(root_path(), registry_add, recursive=True)
+    foreach_externals(root, registry_add, recursive=True)
     errmsg = None
     for url, set_ in registry.iteritems():
-        if len(set_) > 1:
+        # we are only interested to know if branch-ref pairs are duplicated
+        if len({(s[0], s[1]) for s in set_}) > 1:
             if errmsg is None:
                 errmsg = ["Error: one project can not refer to different branches/refs of the same git external repository,",
                     "however it appears to be the case for:"]
             errmsg.append('\t- {}, tracked as:'.format(url))
             for i in set_:
-                errmsg.append("\t\t- branch: '{0}', ref: '{1}'".format(i.branch, i.ref))
+                errmsg.append("\t\t- external directory: '{0}'".format(os.path.relpath(i.path, root)))
+                errmsg.append("\t\t  branch: '{0}', ref: '{1}'".format(i.branch, i.ref))
     if errmsg is not None:
         errmsg.append("Please correct the corresponding {0} before proceeding".format(EXTERNALS_JSON))
         error('\n'.join(errmsg), exitcode=1)
