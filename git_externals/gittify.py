@@ -515,11 +515,8 @@ def cleanup(ctx, repo, dry_run, check_call=check_call):
         tags = check_output(['git', 'for-each-ref',
                              '--format', '%(refname:short) %(objectname)',
                              'refs/remotes/origin/tags'],
-                             universal_newlines=True).strip().split('\n')
-        import q
-        q(tags)
+                             universal_newlines=True).strip().splitlines() or []
         for branch, ref in (tag.strip().split() for tag in tags):
-            q(branch, ref)
             tag_name = os.path.basename(branch)
             body = check_output(['git', 'log', '-1', '--format=format:%B', ref], universal_newlines=True)
             parent = check_output(['git', 'rev-parse', '{}^'.format(ref)], universal_newlines=True)
