@@ -516,13 +516,22 @@ def cleanup(ctx, repo, dry_run, check_call=check_call):
                              '--format', '%(refname:short) %(objectname)',
                              'refs/remotes/origin/tags'],
                              universal_newlines=True).strip().splitlines() or []
+        branches = check_output(['git', 'for-each-ref',
+                                 '--format', '%(refname:short) %(objectname)',
+                                 'refs/remotes/origin'],
+                                 universal_newlines=True).strip().splitlines() or []
         for branch, ref in (tag.strip().split() for tag in tags):
             tag_name = os.path.basename(branch)
             body = check_output(['git', 'log', '-1', '--format=format:%B', ref], universal_newlines=True)
             parent = check_output(['git', 'rev-parse', '{}^'.format(ref)], universal_newlines=True)
             click.secho('ref={ref} parent={parent} tag_name={tag_name} body={body}'.format(**locals()), fg='blue')
-            check_call(['git', 'tag', '-a', '-m', body, tag_name, '{}^'.format(ref)])
+            call(['git', 'tag', '-a', '-m', body, tag_name, '{}^'.format(ref)])
             check_call(['git', 'branch', '-r', '-d', branch])
+
+        for branch, ref in (branch.strip().split() for branch in branches if '/tags/' not in branch and '/trunk' not in branch):
+            branch_name = os.path.basename(branch)
+            check_call(['git', 'checkout', '-b', branch_name, branch])
+        check_call(['git', 'checkout', 'master'])
 
 
 @cli.command('finalize')
