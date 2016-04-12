@@ -40,8 +40,6 @@ def project(ctx):
 def get_project_by_path(gl, path):
     with click.progressbar(iter_projects(gl), label='Searching project...') as projects:
         for prj in projects:
-            import q
-            q(prj.path_with_namespace)
             if prj.path_with_namespace == path:
                 return prj
 
