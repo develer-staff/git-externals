@@ -3,21 +3,34 @@
 
 import os
 import time
+import posixpath
 
 import click
 import gitlab
 
 
-def iter_projects(gl):
+def _iter_paginated(source, per_page=10):
     page = 0
     while True:
-        projects = gl.projects.list(page=page, per_page=10)
+        projects = source(page=page, per_page=per_page)
         if len(projects) == 0:
             break
         else:
             page = page + 1
         for project in projects:
             yield project
+
+
+def iter_projects(gl):
+    for prj in _iter_paginated(gl.projects.list):
+        yield prj
+
+
+def search_projects(gl, name):
+    def source(page, per_page):
+        return gl.projects.search(name, page=page, per_page=per_page)
+    for prj in _iter_paginated(source):
+        yield prj
 
 
 @click.group()
@@ -38,7 +51,8 @@ def project(ctx):
 
 
 def get_project_by_path(gl, path):
-    with click.progressbar(iter_projects(gl), label='Searching project...') as projects:
+    name = posixpath.basename(path)
+    with click.progressbar(search_projects(gl, name), label='Searching project...') as projects:
         for prj in projects:
             if prj.path_with_namespace == path:
                 return prj
@@ -76,6 +90,14 @@ def delete(ctx, path, sync):
                 click.UsegeError('Timeout waiting for %r deletion' % path)
     else:
         click.echo('Project %r submitted for deletion' % path)
+
+
+@project.command()
+@click.pass_context
+def list(ctx):
+    gl = ctx.obj['api']
+    for prj in iter_projects(gl):
+        click.echo(prj.path_with_namespace)
 
 
 def main():
