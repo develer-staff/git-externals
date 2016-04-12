@@ -30,7 +30,8 @@ setup(
     long_description='',
     packages=['git_externals'],
     install_requires=['click',
-                      'pathlib'],
+                      'pathlib',
+                      'python-gitlab'],
     entry_points={
         'console_scripts': [
             'git-externals = git_externals.git_externals:cli',
@@ -38,6 +39,7 @@ setup(
             'svn-externals-info = git_externals.process_externals:main',
             'gittify = git_externals.gittify:main',
             'gittify-gen = git_externals.makefiles:cli',
+            'gittify-gitlab = git_externals.gitlab_utils:main',
         ],
     },
     author=__author__,
