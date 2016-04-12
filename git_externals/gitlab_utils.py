@@ -61,20 +61,19 @@ def delete(ctx, path, sync):
         click.echo('The project %r seems to be already deleted' % path, err=True)
         return
     if sync:
-        with click.progressbar(range(12), label='Waiting for deletion...') as waiting:
-            for step in waiting:
-                try:
-                    gl.projects.get(prj.id)
-                except gitlab.GitlabGetError:
-                    deleted = True
-                    break
-                time.sleep(10)
+        with click.progressbar(range(6*4), label='Waiting for deletion...') as waiting:
+            def deleted():
+                for step in waiting:
+                    try:
+                        gl.projects.get(prj.id)
+                    except gitlab.GitlabGetError:
+                        return True
+                    time.sleep(10)
+                return False
+            if deleted():
+                click.echo('Project %r deleted' % path)
             else:
-                deleted = False
-        if deleted:
-            click.echo('Project %r deleted' % path)
-        else:
-            click.UsegeError('Timeout waiting for %r deletion' % path)
+                click.UsegeError('Timeout waiting for %r deletion' % path)
     else:
         click.echo('Project %r submitted for deletion' % path)
 
