@@ -52,10 +52,17 @@ def svn(*args, **kwargs):
     return output
 
 
-def git(*args):
+def git(*args, **kwargs):
+    capture = kwargs.get('capture', True)
+    if capture:
+         stdout = subprocess.PIPE
+         stderr = subprocess.PIPE
+    else:
+         stdout = None
+         stderr = None
     p = subprocess.Popen(['git'] + list(args),
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE,
+                         stdout=stdout,
+                         stderr=stderr,
                          universal_newlines=True)
     output, err = p.communicate()
 

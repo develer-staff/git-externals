@@ -367,26 +367,26 @@ def gitext_up(recursive, entries=None):
                 if './' not in dirs:
                     sparse_checkout(repo_name, normalized_ext_repo, dirs)
                 else:
-                    git('clone', normalized_ext_repo, repo_name)
+                    git('clone', normalized_ext_repo, repo_name, capture=False)
 
             with chdir(repo_name):
-                git('fetch', '--all')
-                git('fetch', '--tags')
+                git('fetch', '--all', capture=False)
+                git('fetch', '--tags', capture=False)
 
                 if 'tag' in git_externals[ext_repo]:
                     echo('Checking out tag', git_externals[ext_repo]['tag'])
-                    git('checkout', git_externals[ext_repo]['tag'])
+                    git('checkout', git_externals[ext_repo]['tag'], capture=False)
                 else:
                     echo('Checking out branch', git_externals[ext_repo]['branch'])
-                    git('checkout', git_externals[ext_repo]['branch'])
-                    git('pull', 'origin', git_externals[ext_repo]['branch'])
+                    git('checkout', git_externals[ext_repo]['branch'], capture=False)
+                    git('pull', 'origin', git_externals[ext_repo]['branch'], capture=False)
 
                     if git_externals[ext_repo]['ref'] is not None:
                         echo('Checking out commit', git_externals[ext_repo]['ref'])
                         ref = git_externals[ext_repo]['ref']
                         if git_externals[ext_repo]['ref'].startswith('svn:'):
                             ref = git('log', '--grep', 'git-svn-id:.*@%s' % ref.strip('svn:r'), '--format=%H').strip()
-                        git('checkout', ref)
+                        git('checkout', ref, capture=False)
 
     link_entries(git_externals)
 
