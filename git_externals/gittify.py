@@ -35,7 +35,7 @@ import click
 
 from . import cleanup_repo
 from .utils import git, svn, chdir, checkout, current_branch, SVNError, branches, \
-    tags, IndentedLoggerAdapter, git_remote_branches_and_tags
+    tags, IndentedLoggerAdapter, git_remote_branches_and_tags, GitError
 from .process_externals import parsed_externals
 
 GITSVN_EXT = '.gitsvn'
@@ -599,17 +599,26 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
             echo('.. searching in branch %s ...' % branch)
             with chdir(str(gitsvn_repo)):
                 with checkout(branch):
-                    git_ignore = git('svn', 'show-ignore')
+                    try:
+                        git_ignore = git('svn', 'show-ignore')
+                    except GitError as err:
+                        warn('Error processing %s branch in %s:\n\t%s' % (branch, git_repo, err))
+                        git_ignore = None
                     svn_url = gitsvn_url()
 
             externals = []
             check_call(['git', 'stash'])
             with checkout(branch):
-                for ext in get_externals(svn_url, skip_relative=True):
-                    echo('... processing external %s ...' % ext['location'])
-                    externals += [svnext_to_gitext(ext, prefix(config, ext['location']))]
-                add_ignores(git_ignore)
-                add_extfile(externals)
+                try:
+                    for ext in get_externals(svn_url, skip_relative=True):
+                        echo('... processing external %s ...' % ext['location'])
+                        externals += [svnext_to_gitext(ext, prefix(config, ext['location']))]
+                except SVNError as err:
+                    warn('Error processing %s branch in %s:\n\t%s' % (branch, git_repo, err))
+                if git_ignore is not None:
+                    add_ignores(git_ignore)
+                if len(externals) > 0:
+                    add_extfile(externals)
 
 
 def clone_branch(branch_name, obj, config):
