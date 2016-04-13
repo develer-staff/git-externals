@@ -365,11 +365,13 @@ def gitext_up(recursive, entries=None):
 
                 dirs = git_externals[ext_repo]['targets'].keys()
                 if './' not in dirs:
+                    echo('Doing a sparse checkout of:', ', '.join(dirs))
                     sparse_checkout(repo_name, normalized_ext_repo, dirs)
                 else:
                     git('clone', normalized_ext_repo, repo_name, capture=False)
 
             with chdir(repo_name):
+                echo('Fetching data of', repo_name)
                 git('fetch', '--all', capture=False)
                 git('fetch', '--tags', capture=False)
 
