@@ -272,6 +272,8 @@ def gitext_foreach(recursive, command_):
 
 
 @cli.command('update')
+@click.option('--with-hooks/--no-hooks', default=False,
+              help='Install post-checkout hook used to automatically update the working copy')
 @click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
 def gitext_update(recursive):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
