@@ -175,7 +175,7 @@ else:
         csl.restype = ctypes.c_ubyte
         if os.path.isdir(src):
             # use directory junctions (fix for python 2.6)
-            ret = subprocess.call(['mklink', '/J', src, dst])
+            ret = subprocess.call(['mklink', '/J', dst, src])
         else:
             if csl(dst, src, 1) == 0:
                 raise ctypes.WinError()
