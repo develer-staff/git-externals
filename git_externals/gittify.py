@@ -423,54 +423,49 @@ def gittify(repo, config, checkout_branches=False, finalize=False):
 @click.argument('path', metavar='REPOPATH')
 @click.argument('authors-file', type=click.Path(exists=True, resolve_path=True),
                 metavar='USERMAP')
+@click.option('--same-level-branches', default=None)
 @click.option('--dry-run', is_flag=True)
 @click.pass_context
-def clone(ctx, root, path, authors_file, dry_run):
+def clone(ctx, root, path, authors_file, same_level_branches, dry_run):
     remote_repo = posixpath.join(root, path)
     info('Cloning {}'.format(remote_repo))
     repo_name = posixpath.basename(remote_repo)
     gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
 
-    if not gitsvn_repo.parent.exists():
-        if dry_run:
-            echo('mkdir %s' % gitsvn_repo.parent)
-        else:
-            gitsvn_repo.parent.mkdir()
-
-    if gitsvn_repo.exists():
+    if not gitsvn_repo.exists():
+        gitsvn_repo.mkdir(parents=True)
+    else:
         echo('{} already cloned'.format(repo_name))
         return
 
-    args = ['git', 'svn', 'clone', '--prefix=origin/']
+    with chdir(str(gitsvn_repo)):
+        args = ['git', 'svn', 'init', '--prefix=origin/']
 
-    if authors_file is not None:
-        args += ['-A', authors_file]
+        if same_level_branches is None:
+            try:
+                layout_opts = get_layout_opts(remote_repo)
+                args += layout_opts
+            except SVNError as err:
+                error('Error {} in {}'.format(err, remote_repo))
+            args += [remote_repo]
+        else:
+            trunk = posixpath.basename(remote_repo)
+            base_repo = posixpath.dirname(remote_repo)
+            args += ['--branches=/', '--trunk=%s' % trunk, base_repo]
 
-    try:
-        layout_opts = get_layout_opts(remote_repo)
-        args += layout_opts
-    except SVNError as err:
-        error('Error {} in {}'.format(err, remote_repo))
-
-    args += [remote_repo, str(gitsvn_repo)]
-
-    echo(' '.join(map(str, args)))
-
-    if not dry_run:
+        echo(' '.join(map(str, args)))
         check_call(args)
+        config = open('.git/config').read()
+        with open('.git/config', 'w') as f:
+            f.write(config.replace('/*:refs', '/{%s}:refs' % same_level_branches))
 
-    """
-    cleanup_repo.cleanup(gitsvn_repo, False, remote_repo, log=log)
+        args = ['git', 'fetch']
+        if authors_file is not None:
+            args += ['-A', authors_file]
 
-    with chdir(gitsvn_repo):
-        log.info('Cloning externals in branches...')
-        for branch in branches():
-            clone_branch(branch, None, config)
-
-        log.info('Cloning externals in tags...')
-        for tag in tags():
-            clone_branch(tag, tag, config)
-    """
+        echo(' '.join(map(str, args)))
+        if not dry_run:
+            check_call(args)
 
 
 @cli.command('fetch')
