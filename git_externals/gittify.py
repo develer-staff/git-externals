@@ -459,7 +459,7 @@ def clone(ctx, root, path, authors_file, same_level_branches, dry_run):
         with open('.git/config', 'w') as f:
             f.write(config.replace('/*:refs', '/{%s}:refs' % same_level_branches))
 
-        args = ['git', 'fetch']
+        args = ['git', 'svn', 'fetch']
         if authors_file is not None:
             args += ['-A', authors_file]
 
