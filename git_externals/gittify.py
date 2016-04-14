@@ -441,17 +441,23 @@ def clone(ctx, root, path, authors_file, same_level_branches, dry_run):
     with chdir(str(gitsvn_repo)):
         args = ['git', 'svn', 'init', '--prefix=origin/']
 
-        if same_level_branches is None:
-            try:
-                layout_opts = get_layout_opts(remote_repo)
-                args += layout_opts
-            except SVNError as err:
-                error('Error {} in {}'.format(err, remote_repo))
-            args += [remote_repo]
-        else:
-            trunk = posixpath.basename(remote_repo)
-            base_repo = posixpath.dirname(remote_repo)
-            args += ['--branches=/', '--trunk=%s' % trunk, base_repo]
+        try:
+            auto_layout_opts = get_layout_opts(remote_repo) + [remote_repo]
+        except SVNError as err:
+            warn('Error {} in {}'.format(err, remote_repo))
+            auto_layout_opts = None
+
+        if same_level_branches:
+            if auto_layout_opts:
+                error('Incompatible layout options! auto layout = %s vs --same-level-branches %s' %\
+                      (' '.join(auto_layout_opts), same_level_branches))
+            else:
+                trunk = posixpath.basename(remote_repo)
+                base_repo = posixpath.dirname(remote_repo)
+                args += ['--branches=/', '--trunk=%s' % trunk, base_repo]
+                auto_layout_opts = ['--branches=/', '--trunk=%s' % trunk, base_repo]
+
+        args += auto_layout_opts
 
         echo(' '.join(map(str, args)))
         check_call(args)
