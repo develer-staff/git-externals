@@ -194,7 +194,7 @@ def is_workingtree_clean(path, fail_on_empty=True):
 
 
 def link_entries(git_externals):
-    entries = [(get_repo_name(repo), src, os.path.join(os.getcwd(), dst))
+    entries = [(get_repo_name(repo), src, os.path.join(os.getcwd(), dst.replace('/', os.path.sep)))
                for (repo, repo_data) in git_externals.items()
                for (src, dsts) in repo_data['targets'].items()
                for dst in dsts]
