@@ -173,12 +173,8 @@ else:
         csl = ctypes.windll.kernel32.CreateSymbolicLinkW
         csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
         csl.restype = ctypes.c_ubyte
-        if os.path.isdir(src):
-            # use directory junctions (fix for python 2.6)
-            ret = subprocess.call(['mklink', '/J', dst, src])
-        else:
-            if csl(dst, src, 1) == 0:
-                raise ctypes.WinError()
+        if csl(dst, src, 0 if os.path.isfile(src) else 1) == 0:
+            raise ctypes.WinError()
 
     def rm_link(path):
         if os.path.isfile(path):
