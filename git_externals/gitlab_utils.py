@@ -52,7 +52,7 @@ def project(ctx):
 
 def get_project_by_path(gl, path):
     name = posixpath.basename(path)
-    with click.progressbar(search_projects(gl, name), label='Searching project...') as projects:
+    with click.progressbar(search_projects(gl, name), label='Searching project %r ...' % path) as projects:
         for prj in projects:
             if prj.path_with_namespace == path:
                 return prj
