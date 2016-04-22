@@ -601,7 +601,7 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
         for branch in branches():
             echo('.. searching in branch %s ...' % branch)
             with chdir(str(gitsvn_repo)):
-                with checkout(branch):
+                with checkout(posixpath.join('origin', branch) if branch != 'master' else branch):
                     try:
                         git_ignore = git('svn', 'show-ignore')
                     except GitError as err:
