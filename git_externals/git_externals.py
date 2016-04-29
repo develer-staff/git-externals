@@ -272,8 +272,6 @@ def gitext_foreach(recursive, command_):
 
 
 @cli.command('update')
-@click.option('--with-hooks/--no-hooks', default=False,
-              help='Install post-checkout hook used to automatically update the working copy')
 @click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
 def gitext_update(recursive):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks
@@ -307,7 +305,7 @@ def externals_sanity_check():
 
     foreach_externals(root, registry_add, recursive=True)
     errmsg = None
-    for url, set_ in registry.iteritems():
+    for url, set_ in registry.items():
         # we are only interested to know if branch-ref pairs are duplicated
         if len({(s[0], s[1]) for s in set_}) > 1:
             if errmsg is None:
