@@ -535,8 +535,9 @@ def cleanup(ctx, repo, dry_run, check_call=check_call):
         for branch, ref in (branch.strip().split() for branch in branches if '/tags/' not in branch and '/trunk' not in branch):
             branch_name = os.path.basename(branch)
             call(['git', 'branch', '-D', branch_name])
-            check_call(['git', 'checkout', '-b', branch_name, branch])
+            call(['git', 'checkout', '-b', branch_name, branch])
         check_call(['git', 'checkout', 'master'])
+        check_call(['git', 'tag', 'trunk-snapshot'])
 
 
 @cli.command('finalize')

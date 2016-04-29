@@ -7,6 +7,7 @@ import posixpath
 
 import click
 import gitlab
+import requests
 
 
 def _iter_paginated(source, per_page=10):
@@ -52,10 +53,11 @@ def project(ctx):
 
 def get_project_by_path(gl, path):
     name = posixpath.basename(path)
-    with click.progressbar(search_projects(gl, name), label='Searching project %r ...' % path) as projects:
+    with click.progressbar(search_projects(gl, name), label="Searching project '%s' ..." % path) as projects:
         for prj in projects:
             if prj.path_with_namespace == path:
                 return prj
+    click.echo("Unable to find a matching project for path '%s'" % path, err=True)
 
 
 @project.command()
@@ -66,30 +68,80 @@ def delete(ctx, path, sync):
     gl = ctx.obj['api']
     prj = get_project_by_path(gl, path)
     if prj is None:
-        click.echo('Unable to find a matching project for path %r' % path, err=True)
         return
     try:
         if not gl.delete(prj):
-            raise click.UsegeError('Unable to delete project for path %r' % path)
+            raise click.UsegeError("Unable to delete project for path '%s'" % path)
     except gitlab.GitlabGetError:
-        click.echo('The project %r seems to be already deleted' % path, err=True)
+        click.echo("The project '%s' seems to be already deleted (or queued for deletion)" % path, err=True)
         return
     if sync:
         with click.progressbar(range(6*4), label='Waiting for deletion...') as waiting:
-            def deleted():
-                for step in waiting:
-                    try:
-                        gl.projects.get(prj.id)
-                    except gitlab.GitlabGetError:
-                        return True
-                    time.sleep(10)
-                return False
-            if deleted():
-                click.echo('Project %r deleted' % path)
-            else:
-                click.UsegeError('Timeout waiting for %r deletion' % path)
+            for step in waiting:
+                time.sleep(6)
+            click.echo("Project '%s' hopefully deleted" % path)
     else:
-        click.echo('Project %r submitted for deletion' % path)
+        click.echo("Project '%s' submitted for deletion" % path)
+
+
+@project.command()
+@click.argument('path')
+@click.pass_context
+def archive(ctx, path):
+    gl = ctx.obj['api']
+    prj = get_project_by_path(gl, path)
+    if prj is None:
+        click.echo("Unable to find a matching project for path '%s'" % path, err=True)
+        return
+    try:
+        if not prj.archive():
+            raise click.UsegeError("Unable to archive project for path '%s'" % path)
+    except gitlab.GitlabGetError:
+        click.echo("The project '%s' seems to be already archived" % path, err=True)
+        return
+    click.echo("Project '%s' archived" % path)
+
+
+@project.command()
+@click.argument('path')
+@click.argument('branch')
+@click.pass_context
+def protect(ctx, path, branch):
+    gl = ctx.obj['api']
+    prj = get_project_by_path(gl, path)
+    if prj is None:
+        click.echo("Unable to find a matching project for path '%s'" % path, err=True)
+        return
+    try:
+        brc = prj.branches.get(branch)
+    except gitlab.GitlabGetError:
+        raise click.UsageError("Unable to find a matching branch '%s' of project '%s'" % (branch, path))
+    if brc.protected:
+        click.echo("Branch '%s' of project '%s' already protected" %  (branch, path))
+    else:
+        brc.protect()
+        click.echo("Branch '%s' of project '%s' protected" % (branch, path))
+
+
+@project.command()
+@click.argument('path')
+@click.argument('branch')
+@click.pass_context
+def unprotect(ctx, path, branch):
+    gl = ctx.obj['api']
+    prj = get_project_by_path(gl, path)
+    if prj is None:
+        click.echo("Unable to find a matching project for path '%s'" % path, err=True)
+        return
+    try:
+        brc = prj.branches.get(branch)
+    except gitlab.GitlabGetError:
+        raise click.UsageError("Unable to find a matching branch '%s' of project '%s'" % (branch, path))
+    if not brc.protected:
+        click.echo("Branch '%s' of project '%s' already unprotected" %  (branch, path))
+    else:
+        brc.unprotect()
+        click.echo("Branch '%s' of project '%s' unprotected" % (branch, path))
 
 
 @project.command()

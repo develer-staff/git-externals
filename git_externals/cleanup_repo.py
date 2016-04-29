@@ -9,9 +9,7 @@ from .utils import svn, git, SVNError, checkout, chdir, tags, git_remote_branche
 
 
 def name_of(remote):
-    if remote.endswith('/'):
-        remote = remote[:-1]
-    return posixpath.basename(remote)
+    return posixpath.basename(remote.strip('/'))
 
 
 def branchtag_to_tag(tag_name, remote_tag):
@@ -51,6 +49,11 @@ def cleanup(repo, with_revbound=False, remote=None, log=None):
         if remote is not None:
             remote_branches = svn_remote_branches(remote)
             remote_tags = svn_remote_tags(remote)
+        else:
+            remote_branches = []
+            remote_tags = []
+
+        repo_name, _ = posixpath.splitext(name_of(repo))
 
         branches, tags = git_remote_branches_and_tags()
 
@@ -73,8 +76,8 @@ def cleanup(repo, with_revbound=False, remote=None, log=None):
                             .format(branch_name, rev))
                 continue
 
-            if remote is not None and branch_name not in remote_branches:
-                log.warning('Skipping cleanup of {} because it has been deleted(maybe after a merge?)'
+            if branch_name not in remote_branches and not branch_name.startswith(repo_name):
+                log.warning('Skipping cleanup of {} because it has been deleted (maybe after a merge?)'
                             .format(branch_name))
                 continue
 
@@ -90,7 +93,7 @@ def cleanup(repo, with_revbound=False, remote=None, log=None):
 
             tag_name = name_of(tag)
 
-            if remote is not None and tag_name not in remote_tags:
+            if tag_name not in remote_tags:
                 log.warning('Skipping tag {} because it has been deleted'
                             .format(tag))
                 continue
