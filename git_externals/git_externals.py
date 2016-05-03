@@ -25,15 +25,15 @@ click.disable_unicode_literals_warning = True
 
 
 def echo(*args):
-    click.echo(' '.join(args))
+    click.echo(u' '.join(args))
 
 
 def info(*args):
-    click.secho(' '.join(args), fg='blue')
+    click.secho(u' '.join(args), fg='blue')
 
 
 def error(*args, **kwargs):
-    click.secho(' '.join(args), fg='red')
+    click.secho(u' '.join(args), fg='red')
     exitcode = kwargs.get('exitcode', 1)
     if exitcode is not None:
         sys.exit(exitcode)
