@@ -603,7 +603,7 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
         for branch in branches():
             echo('.. searching in branch %s ...' % branch)
             with chdir(str(gitsvn_repo)):
-                with checkout(posixpath.join('origin', branch) if branch != 'master' else branch):
+                with checkout(posixpath.join('origin', branch) if branch != 'master' else branch, force=True):
                     try:
                         git_ignore = git('svn', 'show-ignore')
                     except GitError as err:
@@ -613,7 +613,7 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
 
             externals = []
             check_call(['git', 'stash'])
-            with checkout(branch):
+            with checkout(branch, force=True):
                 try:
                     for ext in get_externals(svn_url, skip_relative=True):
                         echo('... processing external %s ...' % ext['location'])
