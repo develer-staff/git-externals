@@ -253,8 +253,8 @@ def cli(ctx, with_color):
 
 @cli.command('foreach')
 @click.option('--recursive/--no-recursive', help='If --recursive is specified, this command will recurse into nested externals', default=True)
-@click.argument('command_', nargs=-1, required=True, metavar="command")
-def gitext_foreach(recursive, command_):
+@click.argument('subcommand', nargs=-1, required=True)
+def gitext_foreach(recursive, subcommand):
     """Evaluates an arbitrary shell command in each checked out external
     """
 
@@ -263,7 +263,7 @@ def gitext_foreach(recursive, command_):
     def run_command(rel_url, ext_path, targets):
         try:
             info("External {}".format(get_repo_name(rel_url)))
-            output = command(command_[0], *command_[1:])
+            output = command(*subcommand)
             echo(output)
         except CommandError as err:
             error(str(err), exitcode=err.errcode)
