@@ -13,7 +13,7 @@ reason this script is not meant to be used with the old Windows XP.
 
 ## How to Install
 ```bash
-$ pip install git+ssh://gitlab.com/develer/svn-migration-tools.git
+$ pip install https://github.com/develersrl/git-externals/archive/master.zip
 ```
 
 ## Gittify
@@ -32,9 +32,9 @@ This script can work in 3 modes:
 
 Usage:
 ```bash
-$ gittify -A authors-file.txt file:///var/lib/svn/foo file:///var/lib/svn/bar &> clone_log
-$ gittify -A authors-file.txt --fetch &> fetch_log
-$ gittify --finalize --git-server=https://git.foo.com/ &> conversion_log
+$ gittify -A authors-file.txt clone file:///var/lib/svn/foo file:///var/lib/svn/bar
+$ gittify -A authors-file.txt fetch
+$ gittify finalize --git-server=https://git.foo.com/
 ```
 
 However ```gittify --help``` is useful as well.

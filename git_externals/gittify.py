@@ -547,9 +547,14 @@ def cleanup(ctx, repo, dry_run, check_call=check_call):
 @click.option('--externals-filename', default='git_externals.json')
 @click.option('--mismatched-refs-filename', default='mismatched_ext.json')
 @click.option('--dry-run', is_flag=True)
+@click.option('--git-server', default=None)
 @click.pass_context
 def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_refs_filename,
-             dry_run, git=git, checkout=checkout, check_call=check_call):
+             dry_run, git_server, git=git, checkout=checkout, check_call=check_call):
+
+    if git_server is None:
+        error('git-server is required')
+
     gitsvn_repo = ctx.obj['gitsvn_dir'] / (path + GITSVN_EXT)
     git_repo = ctx.obj['finalize_dir'] / (path + GIT_EXT)
     info('Finalize {}'.format(git_repo))
@@ -568,20 +573,9 @@ def finalize(ctx, root, path, ignore_not_found, externals_filename, mismatched_r
 
     config = {'super_repos': ['packages/', 'vendor/'],
               'svn_server': root,
-              'git_server': 'foo',
+              'git_server': git_server,
               'basedir': str(ctx.obj['gitsvn_dir']),
               }
-
-    def prefix(config, path):
-        if path.startswith('/packages/'):
-            git_server = 'packages/'
-        elif path.startswith('/vendor/'):
-            git_server = 'vendor/'
-        else:
-            git_server = 'foo'
-        config = dict(config)
-        config['git_server'] = git_server
-        return config
 
     def add_ignores(git_ignore):
         with open('.gitignore', 'wt') as fp:
