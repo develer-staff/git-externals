@@ -26,8 +26,8 @@ classifiers = [
 setup(
     name='git-externals',
     version=__version__,
-    description='Use git to handle your svn:externals',
-    long_description='ease the migration from Git to SVN by handling svn externals through a cli tool',
+    description='cli tool to manage git externals',
+    long_description='Ease the migration from Git to SVN by handling svn externals through a cli tool',
     packages=['git_externals'],
     install_requires=['click',
                       'git-svn-clone-externals'],
