@@ -1,72 +1,115 @@
-# Git Externals
-Couple of scripts to throw away SVN and migrate to Git. These scripts are particularly
-useful when the SVN repos make heavy use of externals. In some cases it's just impossible
-to use submodules or subtrees to emulate SVN externals, because they aren't as flexible as
-SVN externals. For instance it's impossible to use submodules to include just a single file in an
-arbitrary directory.
+Git Externals
+-------------
 
-Basically what you need to do is launch gittify to slowly migrate all the given SVN repos
-and related externals and then you can use git-externals to manage them.
+`git-externals` is a command line tool that helps you throw **SVN** away and
+migrate to **Git** for projects that make heavy use of *svn:externals*. In some
+cases it's just impossible to use *Git submodules* or *subtrees* to emulate *SVN
+externals*, because they aren't as flexible as SVN externals. For example **SVN**
+lets you handle a *single file dependency* through *SVN external*, whereas **Git**
+doesn't.
 
-On Windows this requires **ADMIN PRIVILEGES**, because under the hood it uses symlinks. Moreover for the same
-reason this script is not meant to be used with the old Windows XP.
+On Windows this requires **ADMIN PRIVILEGES**, because under the hood it uses
+symlinks. For the same reason this script is not meant to be used with the old 
+Windows XP.
 
 ## How to Install
-```bash
+
+```sh
 $ pip install https://github.com/develersrl/git-externals/archive/master.zip
 ```
 
-## Gittify
-This tool tries to do the best to convert SVN repos to Git repos. Under the hood it uses
-`git-svn` to clone repos and does some extra work to handle externals and removed tags and branches.
+## Usage:
 
-If (hopefully) doesn't crash, a dump named "git\_externals.json" will be created in every branch
-and tag containing various info about the externals.
-In case different revisions, branches or tags are used for the same external "mismatched\_externals.json" is
-created with a bit of info.
+### Content of `git_externals.json`
 
-This script can work in 3 modes:
-- Clone: clone the desired svn repos and all their externals into .gitsvn repos;
-- Fetch: it's possible to simply fetch new revisions from svn without cloning everythin again;
-- Finalization: when everything is ready convert all the git-svn repos into bare git repos;
+Once your main project repository is handled by Git, `git-externals` expects to
+find a file called `git_externals.json` at the project root. Here is how to fill
+it:
 
-Usage:
-```bash
-$ gittify -A authors-file.txt clone file:///var/lib/svn/foo file:///var/lib/svn/bar
-$ gittify -A authors-file.txt fetch
-$ gittify finalize --git-server=https://git.foo.com/
+Let's take an hypothetical project **A**, under Subversion, having 2
+dependencies, **B** and **C**, declared as `svn:externals` as
+follows. 
+
+```sh
+$ svn propget svn:externals .
+^/svn/libraries/B lib/B
+^/svn/libraries/C src/C
 ```
 
-However ```gittify --help``` is useful as well.
+```
+A
+├── lib
+│   └── B
+└── src
+    └── C
+```
 
-## Git-Externals
+Once **A**, **B** and **C** have all been migrated over different Git
+repositories, fill `git_externals.json` by running the following commands.
+They describe, for each dependency, its remote location, and the destination 
+directory, relative to the project root. Check out all the possibilities by 
+running `git externals add --help`.
+
+```sh
+$ git externals add --branch=master git@github.com:username/libB.git . lib/B
+$ git externals add --branch=master git@github.com:username/libC.git . src/C
+```
+
+This is now the content of `git_externals.json`:
+
+```json
+{
+    "git@github.com:username/libB.git": {
+        "branch": "master",
+        "ref": null,
+        "targets": {
+            "./": [
+                "lib/B"
+            ]
+        }
+    },
+    "git@github.com:username/libC.git": {
+        "branch": "master",
+        "ref": null,
+        "targets": {
+            "./": [
+                "src/C"
+            ]
+        }
+    }
+}
+```
+
 
 ### Git externals update
 
 If you want to:
-* download the externals of a freshly cloned Git repository and creates their 
-symlinks, in order to have the wanted directory layout.
-* checkout the latest version of all externals (as defined in `git_externals.json` 
-file)
+
+- download the externals of a freshly cloned Git repository and creates their 
+  symlinks, in order to have the wanted directory layout.
+- checkout the latest version of all externals (as defined in
+    `git_externals.json` file)
 
 Run:
-```bash
+
+```sh
 $ git externals update
 ```
 
 ### Git externals status
 
-```bash
+```sh
 $ git externals status [--porcelain|--verbose]
 $ git externals status [--porcelain|--verbose] [external1 [external2] ...]
 ```
 
 Shows the working tree status of one, multiple, or all externals:
+
  - add `--verbose` if you are also interested to see the externals that haven't
-been modified
+   been modified
  - add `--porcelain` if you want the output easily parsable (for non-humans).
 
-```bash
+```sh
 $ git externals status
 $ git externals status deploy
 $ git externals status deploy qtwidgets
@@ -74,12 +117,12 @@ $ git externals status deploy qtwidgets
 
 ### Git externals foreach
 
-```bash
+```sh
 $ git externals foreach [--] cmd [arg1 [arg2] ...]
 ```
 
 Evaluates an arbitrary shell command in each checked out external.
-```bash
+```sh
 $ git externals foreach git fetch
 ```
 
@@ -87,26 +130,28 @@ $ git externals foreach git fetch
 `git rev-parse --all`, you must pass `--` after `foreach` in order to stop 
 git externals argument processing, example:
 
-```bash
+```sh
 $ git externals foreach -- git rev-parse --all
 ```
 
-
 ### Example usage
-```bash
-$ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ foo
-$ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git shared/ bar
-$ git externals add --branch=master https://gitlab.com/gitlab-org/gitlab-ce.git README.md baz/README.md
+
+```sh
+$ git externals add --branch=master https://github.com/username/projectA.git shared/ foo
+$ git externals add --branch=master https://github.com/username/projectB.git shared/ bar
+$ git externals add --branch=master https://github.com/username/projectC.git README.md baz/README.md
 $ git externals add --tag=v4.4 https://github.com/torvalds/linux.git Makefile Makefile
 $ git add git_externals.json
-$ git commit -m "DO NOT FORGET TO COMMIT THE EXTERNALS!!!"
+$ git commit -m "Let git-externals handle our externals ;-)"
 $ git externals update
 $ git externals diff
 $ git externals info
 $ git externals list
+$ git externals foreach -- git diff HEAD~1
 ```
 
+**Note**: Append `/` to the source path if it represents a directory.
 
+### Bash command-line completion
 
-Please be careful to include / if the source is a directory!
-
+See installation instructions in [gitext.completion.bash](./git_externals/gitext.completion.bash).
