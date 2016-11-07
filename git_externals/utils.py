@@ -13,8 +13,10 @@ from contextlib import contextmanager
 
 
 class ProgError(Exception):
-    def __init__(self, prog='', errcode=1, errmsg=''):
-        super(ProgError, self).__init__(u'{} {}'.format(prog, errmsg))
+    def __init__(self, prog='', errcode=1, errmsg='', args=''):
+        if isinstance(args, tuple):
+            args = u' '.join(args)
+        super(ProgError, self).__init__(u'\"{} {}\" {}'.format(prog, args, errmsg))
         self.prog = prog
         self.errcode = errcode
 
@@ -29,9 +31,15 @@ class GitError(ProgError):
         super(GitError, self).__init__(prog='git', **kwargs)
 
 
-class SVNError(ProgError):
+class SvnError(ProgError):
     def __init__(self, **kwargs):
-        super(SVNError, self).__init__(prog='svn', **kwargs)
+        super(SvnError, self).__init__(prog='svn', **kwargs)
+
+
+class GitSvnError(ProgError):
+    def __init__(self, **kwargs):
+        super(GitSvnError, self).__init__(prog='git-svn', **kwargs)
+
 
 class CommandError(ProgError):
     def __init__(self, cmd, **kwargs):
@@ -40,49 +48,59 @@ class CommandError(ProgError):
 
 def svn(*args, **kwargs):
     universal_newlines = kwargs.get('universal_newlines', True)
-    p = subprocess.Popen(['svn'] + list(args),
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE,
-                         universal_newlines=universal_newlines)
-    output, err = p.communicate()
-
-    if p.returncode != 0:
-        raise SVNError(errcode=p.returncode, errmsg=err)
-
+    output, err, errcode = _command('svn', *args, capture=True, universal_newlines=universal_newlines)
+    if errcode != 0:
+        raise SvnError(errcode=errcode, errmsg=err)
     return output
 
 
 def git(*args, **kwargs):
     capture = kwargs.get('capture', True)
+    output, err, errcode = _command('git', *args, capture=capture, universal_newlines=True)
+    if errcode != 0:
+        raise GitError(errcode=errcode, errmsg=err, args=args)
+    return output
+
+
+def gitsvn(*args, **kwargs):
+    capture = kwargs.get('capture', True)
+    output, err, errcode = _command('git', 'svn', *args, capture=capture, universal_newlines=True)
+    if errcode != 0:
+        raise GitSvnError(errcode=errcode, errmsg=err, args=args)
+    return output
+
+
+def gitsvnrebase(*args, **kwargs):
+    capture = kwargs.get('capture', True)
+    output, err, errcode = _command('git-svn-rebase', *args, capture=capture, universal_newlines=True)
+    if errcode != 0:
+        raise GitSvnError(errcode=errcode, errmsg=err, args=args)
+    return output
+
+
+def command(cmd, *args, **kwargs):
+    universal_newlines = kwargs.get('universal_newlines', True)
+    capture = kwargs.get('capture', True)
+    output, err, errcode = _command(cmd, *args, universal_newlines=universal_newlines, capture=capture)
+    if errcode != 0:
+        raise CommandError(cmd, errcode=errcode, errmsg=err, args=args)
+    return output
+
+
+def _command(cmd, *args, **kwargs):
+    universal_newlines = kwargs.get('universal_newlines', True)
+    capture = kwargs.get('capture', True)
     if capture:
-         stdout = subprocess.PIPE
-         stderr = subprocess.PIPE
+        stdout, stderr = subprocess.PIPE, subprocess.PIPE
     else:
-         stdout = None
-         stderr = None
-    p = subprocess.Popen(['git'] + list(args),
+        stdout, stderr = None, None
+
+    p = subprocess.Popen([cmd] + list(args),
                          stdout=stdout,
                          stderr=stderr,
-                         universal_newlines=True)
+                         universal_newlines=universal_newlines)
     output, err = p.communicate()
-
-    if p.returncode != 0:
-        raise GitError(errcode=p.returncode, errmsg=err)
-
-    return output
-
-
-def command(cmd, *args):
-    p = subprocess.Popen([cmd] + list(args),
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE,
-                         universal_newlines=True)
-    output, err = p.communicate()
-
-    if p.returncode != 0:
-        raise CommandError(cmd, errcode=p.returncode, errmsg=err)
-
-    return output
+    return output, err, p.returncode
 
 
 def current_branch():
@@ -161,20 +179,42 @@ def print_msg(msg):
     print(u'  {}'.format(msg))
 
 
+def decode_utf8(msg):
+    """
+    Py2 / Py3 decode
+    """
+    try:
+        return msg.decode('utf8')
+    except AttributeError:
+        return msg
+
+
 if not sys.platform.startswith('win32'):
     link = os.symlink
     rm_link = os.remove
 
 # following works but it requires admin privileges
 else:
-
-    def link(src, dst):
-        import ctypes
-        csl = ctypes.windll.kernel32.CreateSymbolicLinkW
-        csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
-        csl.restype = ctypes.c_ubyte
-        if csl(dst, src, 0 if os.path.isfile(src) else 1) == 0:
-            raise ctypes.WinError()
+    if sys.getwindowsversion()[0] >= 6:
+        def link(src, dst):
+            import ctypes
+            csl = ctypes.windll.kernel32.CreateSymbolicLinkW
+            csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
+            csl.restype = ctypes.c_ubyte
+            if csl(dst, src, 0 if os.path.isfile(src) else 1) == 0:
+                raise ctypes.WinError("Error in CreateSymbolicLinkW(%s, %s)" % (dst, src))
+    else:
+        import shutil
+        def link(src, dst):
+            if os.path.isfile(src):
+                print_msg("WARNING: Unsupported SymLink on Windows before Vista, single files will be copied")
+                shutil.copy2(src, dst)
+            else:
+                try:
+                    subprocess.check_call(['junction', dst, src], shell=True)
+                except:
+                    print_msg("ERROR: Is http://live.sysinternals.com/junction.exe in your PATH?")
+                    raise
 
     def rm_link(path):
         if os.path.isfile(path):
@@ -187,7 +227,7 @@ class IndentedLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, indent_val=4):
         super(IndentedLoggerAdapter, self).__init__(logger, {})
         self.indent_level = 0
-        self.indent_val = 4
+        self.indent_val = indent_val
 
     def process(self, msg, kwargs):
         return (' ' * self.indent_level + msg, kwargs)
