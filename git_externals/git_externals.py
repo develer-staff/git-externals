@@ -2,8 +2,13 @@
 
 from __future__ import print_function, unicode_literals
 
-from . import __version__
-from .utils import chdir, mkdir_p, link, rm_link, git, GitError, command, CommandError
+if __package__ is None:
+    import sys
+    from os import path
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+
+from .utils import (chdir, mkdir_p, link, rm_link, git, GitError, svn, gitsvn, gitsvnrebase)
+from .cli import echo, info, error
 
 import click
 import json
@@ -14,35 +19,23 @@ import posixpath
 from collections import defaultdict, namedtuple
 
 try:
-    from urllib.parse import urlparse, urlunparse, urlsplit, urlunsplit
+    from urllib.parse import urlparse, urlsplit, urlunsplit
 except ImportError:
-    from urlparse import urlparse, urlunparse, urlsplit, urlunsplit
+    from urlparse import urlparse, urlsplit, urlunsplit
+
 
 EXTERNALS_ROOT = os.path.join('.git', 'externals')
 EXTERNALS_JSON = 'git_externals.json'
 
-click.disable_unicode_literals_warning = True
-
-
-def echo(*args):
-    click.echo(u' '.join(args))
-
-
-def info(*args):
-    click.secho(u' '.join(args), fg='blue')
-
-
-def error(*args, **kwargs):
-    click.secho(u' '.join(args), fg='red')
-    exitcode = kwargs.get('exitcode', 1)
-    if exitcode is not None:
-        sys.exit(exitcode)
-
 
 def get_repo_name(repo):
+    if repo[-1] == '/':
+        repo = repo[:-1]
     name = repo.split('/')[-1]
     if name.endswith('.git'):
         name = name[:-len('.git')]
+    if not name:
+        error("Invalid repository name: \"{}\"".format(repo), exitcode=1)
     return name
 
 
@@ -92,13 +85,6 @@ def get_entries():
             if os.path.exists(os.path.join(externals_root_path(), get_repo_name(e)))]
 
 
-def load_gitexts():
-    if os.path.exists(externals_json_path()):
-        with open(externals_json_path()) as fp:
-            return json.load(fp)
-    return {}
-
-
 def load_gitexts(pwd=None):
     """Load the *externals definition file* present in given
     directory, or cwd
@@ -107,13 +93,26 @@ def load_gitexts(pwd=None):
     fn = os.path.join(d, EXTERNALS_JSON)
     if os.path.exists(fn):
         with open(fn) as f:
-            return json.load(f)
+            gitext = json.load(f)
+            for url, _ in gitext.items():
+                # svn external url must be absolute
+                gitext[url]['vcs'] = 'svn' if 'svn' in urlparse(url).scheme else 'git'
+            return gitext
     return {}
 
 
 def dump_gitexts(externals):
-    with open(externals_json_path(), 'wt') as fp:
-        json.dump(externals, fp, sort_keys=True, indent=4)
+    """
+    Dump externals dictionary as json in current working directory
+    git_externals.json. Remove 'vcs' key that is only used at runtime.
+    """
+    with open(externals_json_path(), 'w') as f:
+        # copy the externals dict (we want to keep the 'vcs'
+        dump = {k:v for k,v in externals.items()}
+        for v in dump.values():
+            if 'vcs' in v:
+                del v['vcs']
+        json.dump(dump, f, sort_keys=True, indent=4, separators=(',', ': '))
 
 
 def foreach_externals(pwd, callback, recursive=True, only=()):
@@ -178,7 +177,7 @@ def is_workingtree_clean(path, fail_on_empty=True):
     Returns true if and only if there are no modifications to tracked files. By
     modifications it is intended additions, deletions, file removal or
     conflicts. If True is returned, that means that performing a
-    `git reset --hard` would result in no local modifications lost because:
+    `git reset --hard` would result in no loss of local modifications because:
     - tracked files are unchanged
     - untracked files are not modified anyway
     """
@@ -190,6 +189,7 @@ def is_workingtree_clean(path, fail_on_empty=True):
         try:
             return len([line.strip for line in git('status', '--untracked-files=no', '--porcelain').splitlines(True)]) == 0
         except GitError as err:
+            echo('Couldn\'t retrieve Git status of', path)
             error(str(err), exitcode=err.errcode)
 
 
@@ -220,78 +220,6 @@ def untrack(paths):
                 p = p[2:]
             fp.write(p + '\n')
 
-
-@click.group(invoke_without_command=True)
-@click.version_option(__version__)
-@click.option('--with-color/--no-color',
-              default=True,
-              help='Enable/disable colored output')
-@click.pass_context
-def cli(ctx, with_color):
-    """Utility to manage git externals, meant to be used as a drop-in replacement to svn externals
-
-    This script works cloning externals found in the `git_externals.json` file into `.git/externals` and
-    then it uses symlinks to create the wanted directory layout.
-    """
-
-    if not is_git_repo():
-        error("{} is not a git repository!".format(os.getcwd()), exitcode=2)
-
-    if ctx.invoked_subcommand != 'add' and not os.path.exists(externals_json_path()):
-        error("Unable to find", externals_json_path(), exitcode=1)
-
-    if not os.path.exists(externals_root_path()):
-        if ctx.invoked_subcommand not in set(['update', 'add']):
-            error('You must first run git-externals update/add', exitcode=2)
-    else:
-        if with_color:
-            enable_colored_output()
-
-        if ctx.invoked_subcommand is None:
-            gitext_st(())
-
-
-@cli.command('foreach')
-@click.option('--recursive/--no-recursive', help='If --recursive is specified, this command will recurse into nested externals', default=True)
-@click.argument('subcommand', nargs=-1, required=True)
-def gitext_foreach(recursive, subcommand):
-    """Evaluates an arbitrary shell command in each checked out external
-    """
-
-    externals_sanity_check()
-
-    def run_command(rel_url, ext_path, targets):
-        try:
-            info("External {}".format(get_repo_name(rel_url)))
-            output = command(*subcommand)
-            echo(output)
-        except CommandError as err:
-            error(str(err), exitcode=err.errcode)
-
-    foreach_externals_dir(root_path(), run_command, recursive=recursive)
-
-
-@cli.command('update')
-@click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
-def gitext_update(recursive):
-    """Update the working copy cloning externals if needed and create the desired layout using symlinks
-    """
-
-    externals_sanity_check()
-    root = root_path()
-
-    # Aggregate in a list the `clean flags` of all working trees (root + externals)
-    clean = [is_workingtree_clean(root, fail_on_empty=False)]
-    foreach_externals(root,
-        lambda u,p,r: clean.append(is_workingtree_clean(p, fail_on_empty=False)),
-        recursive=recursive)
-
-    if all(clean):
-        # Proceed with update if everything is clean
-        gitext_up(recursive)
-    else:
-        echo("Cannot perform git externals update because one or more repositories contain some local modifications")
-        echo("Run:\tgit externals status\tto have more information")
 
 
 def externals_sanity_check():
@@ -342,7 +270,7 @@ def filter_externals_not_needed(all_externals, entries):
     return git_externals
 
 
-def gitext_up(recursive, entries=None):
+def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
 
     if not os.path.exists(externals_json_path()):
         return
@@ -350,8 +278,83 @@ def gitext_up(recursive, entries=None):
     all_externals = load_gitexts()
     git_externals = all_externals if entries is None else filter_externals_not_needed(all_externals, entries)
 
+    def egit(command, *args):
+        if command == 'checkout' and reset:
+            args = ('--force',) + args
+        git(command, *args, capture=False)
+
+    def git_initial_checkout(repo_name, repo_url):
+        """Perform the initial git clone (or sparse checkout)"""
+        dirs = git_externals[ext_repo]['targets'].keys()
+        if './' not in dirs:
+            echo('Doing a sparse checkout of:', ', '.join(dirs))
+            sparse_checkout(repo_name, repo_url, dirs)
+        else:
+            egit('clone', repo_url, repo_name)
+
+    def git_update_checkout(reset):
+        """Update an already existing git working tree"""
+        if reset:
+            egit('reset', '--hard')
+            egit('clean', '-df')
+        egit('fetch', '--all')
+        egit('fetch', '--tags')
+        if 'tag' in git_externals[ext_repo]:
+            echo('Checking out tag', git_externals[ext_repo]['tag'])
+            egit('checkout', git_externals[ext_repo]['tag'])
+        else:
+            echo('Checking out branch', git_externals[ext_repo]['branch'])
+            egit('checkout', git_externals[ext_repo]['branch'])
+            egit('pull', 'origin', git_externals[ext_repo]['branch'])
+
+            if git_externals[ext_repo]['ref'] is not None:
+                echo('Checking out commit', git_externals[ext_repo]['ref'])
+                ref = git_externals[ext_repo]['ref']
+                if git_externals[ext_repo]['ref'].startswith('svn:'):
+                    ref = egit('log', '--grep', 'git-svn-id:.*@%s' % ref.strip('svn:r'), '--format=%H').strip()
+                egit('checkout', ref)
+
+    def gitsvn_initial_checkout(repo_name, repo_url):
+        """Perform the initial git-svn clone (or sparse checkout)"""
+        gitsvn('clone', normalized_ext_repo, repo_name, '-rHEAD', capture=False)
+
+    def gitsvn_update_checkout(reset):
+        """Update an already existing git-svn working tree"""
+        # FIXME: seems this might be necessary sometimes (happened with
+        # 'vectorfonts' for example that the following error: "Unable to
+        # determine upstream SVN information from HEAD history" was fixed by
+        # adding that, but breaks sometimes. (investigate)
+        # git('rebase', '--onto', 'git-svn', '--root', 'master')
+        gitsvnrebase('.', capture=False)
+
+    def svn_initial_checkout(repo_name, repo_url):
+        """Perform the initial svn checkout"""
+        svn('checkout', normalized_ext_repo, repo_name, capture=False)
+
+    def svn_update_checkout(reset):
+        """Update an already existing svn working tree"""
+        if reset:
+            svn('revert', '-r', '.')
+        svn('up', capture=False)
+
+    def autosvn_update_checkout(reset):
+        if os.path.exists('.git'):
+            gitsvn_update_checkout(reset)
+        else:
+            svn_update_checkout(reset)
+
     for ext_repo in git_externals.keys():
         normalized_ext_repo = normalize_gitext_url(ext_repo)
+
+        if all_externals[ext_repo]['vcs'] == 'git':
+            _initial_checkout = git_initial_checkout
+            _update_checkout = git_update_checkout
+        else:
+            if use_gitsvn:
+                _initial_checkout = gitsvn_initial_checkout
+            else:
+                _initial_checkout = svn_initial_checkout
+            _update_checkout = autosvn_update_checkout
 
         mkdir_p(externals_root_path())
         with chdir(externals_root_path()):
@@ -360,33 +363,11 @@ def gitext_up(recursive, entries=None):
             info('External', repo_name)
             if not os.path.exists(repo_name):
                 echo('Cloning external', repo_name)
-
-                dirs = git_externals[ext_repo]['targets'].keys()
-                if './' not in dirs:
-                    echo('Doing a sparse checkout of:', ', '.join(dirs))
-                    sparse_checkout(repo_name, normalized_ext_repo, dirs)
-                else:
-                    git('clone', normalized_ext_repo, repo_name, capture=False)
+                _initial_checkout(repo_name, normalized_ext_repo)
 
             with chdir(repo_name):
-                echo('Fetching data of', repo_name)
-                git('fetch', '--all', capture=False)
-                git('fetch', '--tags', capture=False)
-
-                if 'tag' in git_externals[ext_repo]:
-                    echo('Checking out tag', git_externals[ext_repo]['tag'])
-                    git('checkout', git_externals[ext_repo]['tag'], capture=False)
-                else:
-                    echo('Checking out branch', git_externals[ext_repo]['branch'])
-                    git('checkout', git_externals[ext_repo]['branch'], capture=False)
-                    git('pull', 'origin', git_externals[ext_repo]['branch'], capture=False)
-
-                    if git_externals[ext_repo]['ref'] is not None:
-                        echo('Checking out commit', git_externals[ext_repo]['ref'])
-                        ref = git_externals[ext_repo]['ref']
-                        if git_externals[ext_repo]['ref'].startswith('svn:'):
-                            ref = git('log', '--grep', 'git-svn-id:.*@%s' % ref.strip('svn:r'), '--format=%H').strip()
-                        git('checkout', ref, capture=False)
+                echo('Retrieving changes from server: ', repo_name)
+                _update_checkout(reset)
 
     link_entries(git_externals)
 
@@ -396,154 +377,12 @@ def gitext_up(recursive, entries=None):
                        for t in git_externals[ext_repo]['targets'].values()
                        for d in t]
             with chdir(os.path.join(externals_root_path(), get_repo_name(ext_repo))):
-                gitext_up(recursive, entries)
+                gitext_up(recursive, entries, reset=reset)
 
     to_untrack = []
     for ext in git_externals.values():
         to_untrack += [dst for dsts in ext['targets'].values() for dst in dsts]
     untrack(to_untrack)
-
-
-@cli.command('status')
-@click.option(
-    '--porcelain',
-    is_flag=True,
-    help='Print output using the porcelain format, useful mostly for scripts')
-@click.option(
-    '--verbose/--no-verbose',
-    is_flag=True,
-    help='Show the full output of git status, instead of showing only the modifications regarding tracked file')
-@click.argument('externals', nargs=-1)
-def gitext_st(porcelain, verbose, externals):
-    """Call git status on the given externals"""
-
-    def get_status(rel_url, ext_path, targets):
-        try:
-            if porcelain:
-                echo(rel_url)
-                click.echo(git('status', '--porcelain'))
-            elif verbose or not is_workingtree_clean(ext_path):
-                info("External {}".format(get_repo_name(rel_url)))
-                echo(git('status', '--untracked-files=no' if not verbose else ''))
-        except CommandError as err:
-            error(str(err), exitcode=err.errcode)
-
-    foreach_externals_dir(root_path(), get_status, recursive=True, only=externals)
-
-
-@cli.command('diff')
-@click.argument('external', nargs=-1)
-def gitext_diff(external):
-    """Call git diff on the given externals"""
-
-    for _ in iter_externals(external):
-        click.echo(git('diff'))
-
-
-@cli.command('list')
-def gitext_ls():
-    """Print just a list of all externals used"""
-
-    for entry in iter_externals([], verbose=False):
-        info(entry)
-
-
-@cli.command('add')
-@click.argument('external',
-                metavar='URL')
-@click.argument('src', metavar='PATH')
-@click.argument('dst', metavar='PATH')
-@click.option('--branch', '-b', default=None, help='Checkout the given branch')
-@click.option('--tag', '-t', default=None, help='Checkout the given tag')
-@click.option(
-    '--ref',
-    '-r',
-    default=None,
-    help='Checkout the given commit sha, it requires that a branch is given')
-def gitext_add(external, src, dst, branch, tag, ref):
-    """Add a git external to the current repo.
-
-    Be sure to add '/' to `src` if it's a directory!
-    It's possible to add multiple `dst` to the same `src`, however you cannot mix different branches, tags or refs
-    for the same external.
-
-    It's safe to use this command to add `src` to an already present external, as well as adding
-    `dst` to an already present `src`.
-
-    It requires one of --branch or --tag.
-    """
-
-    git_externals = load_gitexts()
-
-    if branch is None and tag is None:
-        error('Please specifiy at least a branch or a tag', exitcode=3)
-
-    if external not in git_externals:
-        git_externals[external] = {'targets': {src: [dst]}}
-        if branch is not None:
-            git_externals[external]['branch'] = branch
-            git_externals[external]['ref'] = ref
-        else:
-            git_externals[external]['tag'] = tag
-
-    else:
-        if branch is not None:
-            if 'branch' not in git_externals[external]:
-                error(
-                    '{} is bound to tag {}, cannot set it to branch {}'.format(
-                        external, git_externals[external]['tag'], branch),
-                    exitcode=4)
-
-            if ref != git_externals[external]['ref']:
-                error('{} is bound to ref {}, cannot set it to ref {}'.format(
-                    external, git_externals[external]['ref'], ref),
-                      exitcode=4)
-
-        elif 'tag' not in git_externals[external]:
-            error('{} is bound to branch {}, cannot set it to tag {}'.format(
-                external, git_externals[external]['branch'], tag),
-                  exitcode=4)
-
-        if dst not in git_externals[external]['targets'].setdefault(src, []):
-            git_externals[external]['targets'][src].append(dst)
-
-    dump_gitexts(git_externals)
-
-
-@cli.command('remove')
-@click.argument('external', nargs=-1, metavar='URL')
-def gitext_remove(external):
-    """Remove the externals at the given repository URLs """
-
-    git_externals = load_gitexts()
-
-    for ext in external:
-        if ext in git_externals:
-            del git_externals[ext]
-
-    dump_gitexts(git_externals)
-
-
-@cli.command('info')
-@click.argument('external', nargs=-1)
-@click.option('--recursive/--no-recursive', default=True, help='Print info only for top level externals')
-def gitext_info(external, recursive):
-    """Print some info about the externals."""
-
-    if recursive:
-        gitext_recursive_info('.')
-        return
-
-    external = set(external)
-    git_externals = load_gitexts()
-
-    filtered = [(ext_repo, ext)
-                for (ext_repo, ext) in git_externals.items()
-                if get_repo_name(ext_repo) in external]
-    filtered = filtered or git_externals.items()
-
-    for ext_repo, ext in filtered:
-        print_gitext_info(ext_repo, ext, root_dir='.')
 
 
 def gitext_recursive_info(root_dir):
@@ -608,9 +447,3 @@ def iter_externals(externals, verbose=True):
             if verbose:
                 info('External {}'.format(entry))
             yield entry
-
-
-def enable_colored_output():
-    for entry in get_entries():
-        with chdir(os.path.join(externals_root_path(), entry)):
-            git('config', 'color.ui', 'always')
