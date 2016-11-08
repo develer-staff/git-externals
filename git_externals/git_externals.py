@@ -334,7 +334,7 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
     def svn_update_checkout(reset):
         """Update an already existing svn working tree"""
         if reset:
-            svn('revert', '-r', '.')
+            svn('revert', '-R', '.')
         svn('up', capture=False)
 
     def autosvn_update_checkout(reset):
