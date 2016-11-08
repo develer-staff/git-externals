@@ -221,7 +221,6 @@ def untrack(paths):
             fp.write(p + '\n')
 
 
-
 def externals_sanity_check():
     """Check that we are not trying to track various refs of the same external repo"""
     ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path'])
