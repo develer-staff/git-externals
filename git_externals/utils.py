@@ -50,6 +50,7 @@ def svn(*args, **kwargs):
     universal_newlines = kwargs.get('universal_newlines', True)
     output, err, errcode = _command('svn', *args, capture=True, universal_newlines=universal_newlines)
     if errcode != 0:
+        print("running svn ", args)
         raise SvnError(errcode=errcode, errmsg=err)
     return output
 

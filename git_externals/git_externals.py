@@ -213,15 +213,6 @@ def link_entries(git_externals):
             link(os.path.abspath(src), dst)
 
 
-def untrack(paths):
-    with open(os.path.join('.git', 'info', 'exclude'), 'wt') as fp:
-        for p in paths:
-            if p.startswith('./'):
-                p = p[2:]
-            fp.write(p + '\n')
-
-
-
 def externals_sanity_check():
     """Check that we are not trying to track various refs of the same external repo"""
     ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path'])
@@ -334,7 +325,7 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
     def svn_update_checkout(reset):
         """Update an already existing svn working tree"""
         if reset:
-            svn('revert', '-r', '.')
+            svn('revert', '-R', '.')
         svn('up', capture=False)
 
     def autosvn_update_checkout(reset):
@@ -378,11 +369,6 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
                        for d in t]
             with chdir(os.path.join(externals_root_path(), get_repo_name(ext_repo))):
                 gitext_up(recursive, entries, reset=reset)
-
-    to_untrack = []
-    for ext in git_externals.values():
-        to_untrack += [dst for dsts in ext['targets'].values() for dst in dsts]
-    untrack(to_untrack)
 
 
 def gitext_recursive_info(root_dir):
