@@ -203,7 +203,8 @@ else:
             csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
             csl.restype = ctypes.c_ubyte
             if csl(dst, src, 0 if os.path.isfile(src) else 1) == 0:
-                raise ctypes.WinError("Error in CreateSymbolicLinkW(%s, %s)" % (dst, src))
+                print("Error in CreateSymbolicLinkW(%s, %s)" % (dst, src))
+                raise ctypes.WinError()
     else:
         import shutil
         def link(src, dst):
