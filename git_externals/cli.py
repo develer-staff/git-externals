@@ -82,8 +82,10 @@ def gitext_foreach(recursive, subcommand):
         try:
             info("External {}".format(get_repo_name(rel_url)))
             output = decode_utf8(command(*subcommand))
+            info("Ok: CWD: {}, cmd: {}".format(os.getcwd(), subcommand))
             echo(output)
         except CommandError as err:
+            info("Command error {} CWD: {}, cmd: {}".format(err, os.getcwd(), subcommand))
             error(str(err), exitcode=err.errcode)
 
     foreach_externals_dir(root_path(), run_command, recursive=recursive)
