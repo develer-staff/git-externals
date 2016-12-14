@@ -124,7 +124,7 @@ __git_ext_diff ()
 __git_ext_update_foreach ()
 {
   local opts=""
-  opts="--recursive --no-recursive"
+  opts="--recursive --no-recursive --gitsvn --no-gitsvn --reset"
   COMPREPLY=( ${COMPREPLY[@]:-} $(compgen -W "${opts}" -- "${cur}") )
 }
 
