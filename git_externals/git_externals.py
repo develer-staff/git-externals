@@ -27,6 +27,7 @@ except ImportError:
 EXTERNALS_ROOT = os.path.join('.git', 'externals')
 EXTERNALS_JSON = 'git_externals.json'
 
+ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path', 'name'])
 
 def get_repo_name(repo):
     if repo[-1] == '/':
@@ -215,12 +216,11 @@ def link_entries(git_externals):
 
 def externals_sanity_check():
     """Check that we are not trying to track various refs of the same external repo"""
-    ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path'])
     registry = defaultdict(set)
     root = root_path()
 
     def registry_add(url, path, ext):
-        registry[url].add(ExtItem(ext['branch'], ext['ref'], path))
+        registry[url].add(ExtItem(ext['branch'], ext['ref'], path, ext.get('name', '')))
 
     foreach_externals(root, registry_add, recursive=True)
     errmsg = None
