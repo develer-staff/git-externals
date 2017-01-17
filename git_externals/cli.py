@@ -82,8 +82,10 @@ def gitext_foreach(recursive, subcommand):
         try:
             info("External {}".format(get_repo_name(rel_url)))
             output = decode_utf8(command(*subcommand))
+            info("Ok: CWD: {}, cmd: {}".format(os.getcwd(), subcommand))
             echo(output)
         except CommandError as err:
+            info("Command error {} CWD: {}, cmd: {}".format(err, os.getcwd(), subcommand))
             error(str(err), exitcode=err.errcode)
 
     foreach_externals_dir(root_path(), run_command, recursive=recursive)
@@ -91,7 +93,7 @@ def gitext_foreach(recursive, subcommand):
 
 @cli.command('update')
 @click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
-@click.option('--gitsvn/--no-gitsvn', help='Do not call git-externals update recursively (used only for the first checkout)', default=False)
+@click.option('--gitsvn/--no-gitsvn', help='use git-svn (or simply svn) to checkout SVN repositories (only needed at first checkout)', default=True)
 @click.option('--reset', help='Reset repo, overwrite local modifications', is_flag=True)
 def gitext_update(recursive, gitsvn, reset):
     """Update the working copy cloning externals if needed and create the desired layout using symlinks

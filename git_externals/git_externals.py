@@ -27,8 +27,14 @@ except ImportError:
 EXTERNALS_ROOT = os.path.join('.git', 'externals')
 EXTERNALS_JSON = 'git_externals.json'
 
+ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path', 'name'])
 
 def get_repo_name(repo):
+    externals = load_gitexts()
+    if len(externals) and externals[repo].has_key('name'):
+        # echo ("for {} in pwd:{} returning {}".format(repo, os.getcwd(), externals[repo]['name']))
+        return externals[repo]['name']
+
     if repo[-1] == '/':
         repo = repo[:-1]
     name = repo.split('/')[-1]
@@ -215,12 +221,11 @@ def link_entries(git_externals):
 
 def externals_sanity_check():
     """Check that we are not trying to track various refs of the same external repo"""
-    ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path'])
     registry = defaultdict(set)
     root = root_path()
 
     def registry_add(url, path, ext):
-        registry[url].add(ExtItem(ext['branch'], ext['ref'], path))
+        registry[url].add(ExtItem(ext['branch'], ext['ref'], path, ext.get('name', '')))
 
     foreach_externals(root, registry_add, recursive=True)
     errmsg = None
@@ -238,6 +243,8 @@ def externals_sanity_check():
         errmsg.append("Please correct the corresponding {0} before proceeding".format(EXTERNALS_JSON))
         error('\n'.join(errmsg), exitcode=1)
     info('externals sanity check passed!')
+
+    # TODO: check if  we don't have duplicate entries under .git/externals
 
 
 def filter_externals_not_needed(all_externals, entries):
@@ -350,14 +357,16 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
         mkdir_p(externals_root_path())
         with chdir(externals_root_path()):
             repo_name = get_repo_name(normalized_ext_repo)
+            ext_name = git_externals[ext_repo].get('name', '')
+            ext_name = ext_name if ext_name else repo_name
 
-            info('External', repo_name)
-            if not os.path.exists(repo_name):
-                echo('Cloning external', repo_name)
-                _initial_checkout(repo_name, normalized_ext_repo)
+            info('External', ext_name)
+            if not os.path.exists(ext_name):
+                echo('Cloning external', ext_name)
+                _initial_checkout(ext_name, normalized_ext_repo)
 
-            with chdir(repo_name):
-                echo('Retrieving changes from server: ', repo_name)
+            with chdir(ext_name):
+                echo('Retrieving changes from server: ', ext_name)
                 _update_checkout(reset)
 
     link_entries(git_externals)
@@ -410,6 +419,9 @@ def print_gitext_info(ext_repo, ext, root_dir):
     else:
         click.echo('Branch: {}'.format(ext['branch']))
         click.echo('Ref:    {}'.format(ext['ref']))
+
+    if 'name' in ext:
+        click.echo('Name:    {}'.format(ext['name']))
 
     for src, dsts in ext['targets'].items():
         for dst in dsts:
