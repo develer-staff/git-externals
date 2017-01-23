@@ -377,7 +377,7 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
                        for t in git_externals[ext_repo]['targets'].values()
                        for d in t]
             with chdir(os.path.join(externals_root_path(), get_repo_name(ext_repo))):
-                gitext_up(recursive, entries, reset=reset)
+                gitext_up(recursive, entries, reset=reset, use_gitsvn=use_gitsvn)
 
 
 def gitext_recursive_info(root_dir):
