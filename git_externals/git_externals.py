@@ -327,13 +327,13 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
 
     def svn_initial_checkout(repo_name, repo_url):
         """Perform the initial svn checkout"""
-        svn('checkout', normalized_ext_repo, repo_name, capture=False)
+        svn('checkout', '--ignore-externals', normalized_ext_repo, repo_name, capture=False)
 
     def svn_update_checkout(reset):
         """Update an already existing svn working tree"""
         if reset:
             svn('revert', '-R', '.')
-        svn('up', capture=False)
+        svn('up', '--ignore-externals', capture=False)
 
     def autosvn_update_checkout(reset):
         if os.path.exists('.git'):
