@@ -2,16 +2,17 @@
 
 from __future__ import print_function, unicode_literals
 
+import os
+import sys
+
+import click
+
 if __package__ is None:
     from __init__ import __version__
     from utils import command, CommandError, chdir, git, ProgError
 else:
     from . import __version__
     from .utils import command, CommandError, chdir, git, ProgError, decode_utf8
-
-import click
-import os
-import sys
 
 click.disable_unicode_literals_warning = True
 
@@ -176,11 +177,7 @@ def gitext_ls():
 @click.argument('dst', metavar='PATH')
 @click.option('--branch', '-b', default=None, help='Checkout the given branch')
 @click.option('--tag', '-t', default=None, help='Checkout the given tag')
-@click.option(
-    '--ref',
-    '-r',
-    default=None,
-    help='Checkout the given commit sha, it requires that a branch is given')
+@click.option('--ref', '-r', default=None, help='Checkout the given commit sha')
 def gitext_add(external, src, dst, branch, tag, ref):
     """Add a git external to the current repo.
 

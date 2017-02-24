@@ -42,4 +42,3 @@ setup(
     license='MIT',
     classifiers=classifiers,
 )
-

@@ -29,10 +29,12 @@ EXTERNALS_JSON = 'git_externals.json'
 
 ExtItem = namedtuple('ExtItem', ['branch', 'ref', 'path', 'name'])
 
+
 def get_repo_name(repo):
     externals = load_gitexts()
-    if len(externals) and externals[repo].has_key('name'):
-        # echo ("for {} in pwd:{} returning {}".format(repo, os.getcwd(), externals[repo]['name']))
+    if repo in externals and 'name' in externals[repo]:
+        # echo ("for {} in pwd:{} returning {}".format(repo, os.getcwd(),
+        #                                              externals[repo]['name']))
         return externals[repo]['name']
 
     if repo[-1] == '/':
@@ -113,8 +115,8 @@ def dump_gitexts(externals):
     git_externals.json. Remove 'vcs' key that is only used at runtime.
     """
     with open(externals_json_path(), 'w') as f:
-        # copy the externals dict (we want to keep the 'vcs'
-        dump = {k:v for k,v in externals.items()}
+        # copy the externals dict (we want to keep the 'vcs')
+        dump = {k: v for k,v in externals.items()}
         for v in dump.values():
             if 'vcs' in v:
                 del v['vcs']
@@ -234,7 +236,7 @@ def externals_sanity_check():
         if len({(s[0], s[1]) for s in set_}) > 1:
             if errmsg is None:
                 errmsg = ["Error: one project can not refer to different branches/refs of the same git external repository,",
-                    "however it appears to be the case for:"]
+                          "however it appears to be the case for:"]
             errmsg.append('\t- {}, tracked as:'.format(url))
             for i in set_:
                 errmsg.append("\t\t- external directory: '{0}'".format(os.path.relpath(i.path, root)))
