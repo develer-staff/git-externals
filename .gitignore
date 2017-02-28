@@ -61,6 +61,9 @@ target/
 #Ipython Notebook
 .ipynb_checkpoints
 
+# Tags
+tags
+
 # Local gittify folders
 gitsvn/
 finalize/
