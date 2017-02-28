@@ -7,14 +7,9 @@ if __package__ is None:
     from os import path
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from .utils import (chdir, mkdir_p, link, rm_link, git, GitError, svn, gitsvn, gitsvnrebase)
-from .cli import echo, info, error
-
-import click
 import json
 import os
 import os.path
-import sys
 import posixpath
 from collections import defaultdict, namedtuple
 
@@ -22,6 +17,11 @@ try:
     from urllib.parse import urlparse, urlsplit, urlunsplit
 except ImportError:
     from urlparse import urlparse, urlsplit, urlunsplit
+
+import click
+
+from .utils import (chdir, mkdir_p, link, rm_link, git, GitError, svn, gitsvn, gitsvnrebase, current_branch)
+from .cli import echo, info, error
 
 
 EXTERNALS_ROOT = os.path.join('.git', 'externals')
@@ -76,7 +76,8 @@ def normalize_gitext_url(url):
         return url
 
     # relative urls use the root url of the current origin
-    remote_url = git('config', 'remote.origin.url').strip()
+    remote_name = git('config', 'branch.%s.remote' % current_branch()).strip()
+    remote_url = git('config', 'remote.%s.url' % remote_name).strip()
 
     if remote_url.startswith('git@'):
         prefix = remote_url[:remote_url.index(':')+1]
