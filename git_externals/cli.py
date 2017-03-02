@@ -69,7 +69,7 @@ def cli(ctx, with_color):
             gitext_st(())
 
 
-@cli.command('foreach')
+@cli.command('foreach', context_settings=dict(ignore_unknown_options=True))
 @click.option('--recursive/--no-recursive', help='If --recursive is specified, this command will recurse into nested externals', default=True)
 @click.argument('subcommand', nargs=-1, required=True)
 def gitext_foreach(recursive, subcommand):
