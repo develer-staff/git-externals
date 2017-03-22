@@ -329,7 +329,7 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
         # determine upstream SVN information from HEAD history" was fixed by
         # adding that, but breaks sometimes. (investigate)
         # git('rebase', '--onto', 'git-svn', '--root', 'master')
-        gitsvnrebase('.', capture=False)
+        # gitsvnrebase('.', capture=False)
 
     def svn_initial_checkout(repo_name, repo_url):
         """Perform the initial svn checkout"""
