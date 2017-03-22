@@ -318,7 +318,7 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
     def gitsvn_initial_checkout(repo_name, repo_url):
         """Perform the initial git-svn clone (or sparse checkout)"""
         import re
-        m = re.match(r'(?:svn:)?(?:r)?(\d+)', git_externals[ext_repo]['ref'])
+        m = re.match(r'(?:svn:)?(?:r)?(\d+)', git_externals[ext_repo]['ref'] or '')
         rev = m.groups()[0] if m is not None else 'HEAD'
         gitsvn('clone', normalized_ext_repo, repo_name, '-r'+rev, capture=False)
 
