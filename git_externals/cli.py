@@ -4,6 +4,7 @@ from __future__ import print_function, unicode_literals
 
 import os
 import sys
+import re
 
 import click
 
@@ -12,7 +13,8 @@ if __package__ is None:
     from utils import command, CommandError, chdir, git, ProgError
 else:
     from . import __version__
-    from .utils import command, CommandError, chdir, git, ProgError, decode_utf8
+    from .utils import (command, CommandError, chdir, git, ProgError, decode_utf8,
+                        current_branch)
 
 click.disable_unicode_literals_warning = True
 
@@ -178,7 +180,9 @@ def gitext_ls():
 @click.option('--branch', '-b', default=None, help='Checkout the given branch')
 @click.option('--tag', '-t', default=None, help='Checkout the given tag')
 @click.option('--ref', '-r', default=None, help='Checkout the given commit sha')
-def gitext_add(external, src, dst, branch, tag, ref):
+@click.option('--vcs', '-c', default='auto', help='Version Control System (default: autodetect)',
+              type=click.Choice(['svn', 'git', 'auto']))
+def gitext_add(external, src, dst, branch, tag, ref, vcs):
     """Add a git external to the current repo.
 
     Be sure to add '/' to `src` if it's a directory!
@@ -190,7 +194,7 @@ def gitext_add(external, src, dst, branch, tag, ref):
 
     It requires one of --branch or --tag.
     """
-    from git_externals import load_gitexts, dump_gitexts
+    from git_externals import load_gitexts, dump_gitexts, normalize_gitexts, print_gitext_info
 
     git_externals = load_gitexts()
 
@@ -204,6 +208,10 @@ def gitext_add(external, src, dst, branch, tag, ref):
             git_externals[external]['ref'] = ref
         else:
             git_externals[external]['tag'] = tag
+        if vcs == 'auto':
+            git_externals.update(normalize_gitexts({external: git_externals[external]}))
+        else:
+            git_externals[external]['vcs'] = vcs
 
     else:
         if branch is not None:
@@ -225,6 +233,43 @@ def gitext_add(external, src, dst, branch, tag, ref):
 
         if dst not in git_externals[external]['targets'].setdefault(src, []):
             git_externals[external]['targets'][src].append(dst)
+
+    print_gitext_info(external, git_externals[external], root_dir='.')
+    dump_gitexts(git_externals)
+
+
+@cli.command('freeze')
+@click.argument('externals', nargs=-1, metavar='NAME')
+def gitext_freeze(externals):
+    """Freeze the externals revision"""
+    from git_externals import load_gitexts, dump_gitexts, foreach_externals_dir, root_path
+    git_externals = load_gitexts()
+    re_from_git_svn_id = re.compile("git-svn-id:.*@(\d+)")
+
+    def get_version(rel_url, ext_path, refs):
+        if 'tag' in refs:
+            return
+
+        if git_externals[rel_url]["vcs"] == "svn":
+            revision = command('svnversion', '-c').strip()
+            if "Unversioned" in revision:
+                revision = None
+            else:
+                revision = "svn:r" + revision.split(':')[-1]  # 565:56555 -> svn:r56555
+        else:
+            message = git("log", "--grep", "git-svn-id:", "-1")
+            match = re_from_git_svn_id.search(message)
+            if match:
+                revision = "svn:r" + match.group(1)
+            else:
+                branch_name = current_branch()
+                remote_name = git("config", "branch.%s.remote" % branch_name)
+                revision = git("log", "%s/%s" % (remote_name, branch_name), "-1", "--format=%H")
+
+        info("Freeze {0} at {1}".format(rel_url, revision))
+        git_externals[rel_url]["ref"] = revision
+
+    foreach_externals_dir(root_path(), get_version, only=externals)
 
     dump_gitexts(git_externals)
 

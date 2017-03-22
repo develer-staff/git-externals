@@ -19,6 +19,7 @@ Usage without options:
     add      Add a git external to the current repo.
     diff     Call git diff on the given externals
     foreach  Evaluates an arbitrary shell command in each...
+    freeze   Freeze the externals revision
     info     Print some info about the externals.
     list     Print just a list of all externals used
     remove   Remove the externals at the given repository...

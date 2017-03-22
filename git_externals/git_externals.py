@@ -102,12 +102,15 @@ def load_gitexts(pwd=None):
     fn = os.path.join(d, EXTERNALS_JSON)
     if os.path.exists(fn):
         with open(fn) as f:
-            gitext = json.load(f)
-            for url, _ in gitext.items():
-                # svn external url must be absolute
-                gitext[url]['vcs'] = 'svn' if 'svn' in urlparse(url).scheme else 'git'
-            return gitext
+            return normalize_gitexts(json.load(f))
     return {}
+
+
+def normalize_gitexts(gitext):
+    for url, _ in gitext.items():
+        # svn external url must be absolute and svn+ssh to be autodetected
+        gitext[url].setdefault('vcs', 'svn' if 'svn' in urlparse(url).scheme else 'git')
+    return gitext
 
 
 def dump_gitexts(externals):
@@ -116,12 +119,7 @@ def dump_gitexts(externals):
     git_externals.json. Remove 'vcs' key that is only used at runtime.
     """
     with open(externals_json_path(), 'w') as f:
-        # copy the externals dict (we want to keep the 'vcs')
-        dump = {k: v for k,v in externals.items()}
-        for v in dump.values():
-            if 'vcs' in v:
-                del v['vcs']
-        json.dump(dump, f, sort_keys=True, indent=4, separators=(',', ': '))
+        json.dump(externals, f, sort_keys=True, indent=4, separators=(',', ': '))
 
 
 def foreach_externals(pwd, callback, recursive=True, only=()):
@@ -306,18 +304,28 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
         else:
             echo('Checking out branch', git_externals[ext_repo]['branch'])
             egit('checkout', git_externals[ext_repo]['branch'])
-            egit('pull', 'origin', git_externals[ext_repo]['branch'])
 
-            if git_externals[ext_repo]['ref'] is not None:
-                echo('Checking out commit', git_externals[ext_repo]['ref'])
-                ref = git_externals[ext_repo]['ref']
-                if git_externals[ext_repo]['ref'].startswith('svn:'):
-                    ref = egit('log', '--grep', 'git-svn-id:.*@%s' % ref.strip('svn:r'), '--format=%H').strip()
-                egit('checkout', ref)
+            rev = get_rev(ext_repo)
+            if rev is not None:
+                echo('Checking out commit', rev)
+                egit('checkout', rev)
+
+    def get_rev(ext_repo, mode='git'):
+        assert mode in ('git', 'svn'), "mode = {} not in (git, svn)".format(mode)
+        ref = git_externals[ext_repo]['ref']
+        if ref is not None:
+            if ref.startswith('svn:r'):
+                ref = ref.strip('svn:r')
+                # If the revision starts with 'svn:r' in 'git' mode we search
+                # for the matching hash.
+                if mode == 'git':
+                    ref = git('log', '--grep', 'git-svn-id:.*@%s' % ref, '--format=%H', capture=True).strip()
+        return ref
 
     def gitsvn_initial_checkout(repo_name, repo_url):
         """Perform the initial git-svn clone (or sparse checkout)"""
-        gitsvn('clone', normalized_ext_repo, repo_name, '-rHEAD', capture=False)
+        min_rev = get_rev(ext_repo, mode='svn') or 'HEAD'
+        gitsvn('clone', normalized_ext_repo, repo_name, '-r%s' % min_rev, capture=False)
 
     def gitsvn_update_checkout(reset):
         """Update an already existing git-svn working tree"""
@@ -327,6 +335,9 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
         # adding that, but breaks sometimes. (investigate)
         # git('rebase', '--onto', 'git-svn', '--root', 'master')
         gitsvnrebase('.', capture=False)
+        rev = get_rev(ext_repo) or 'git-svn'
+        echo('Checking out commit', rev)
+        git('checkout', rev)
 
     def svn_initial_checkout(repo_name, repo_url):
         """Perform the initial svn checkout"""
@@ -336,7 +347,9 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
         """Update an already existing svn working tree"""
         if reset:
             svn('revert', '-R', '.')
-        svn('up', '--ignore-externals', capture=False)
+        rev = get_rev(ext_repo, mode='svn') or 'HEAD'
+        echo('Updating to commit', rev)
+        svn('up', '--ignore-externals', '-r%s' % rev, capture=False)
 
     def autosvn_update_checkout(reset):
         if os.path.exists('.git'):

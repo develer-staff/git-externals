@@ -89,6 +89,8 @@ def command(cmd, *args, **kwargs):
 
 
 def _command(cmd, *args, **kwargs):
+    env = kwargs.get('env', dict(os.environ))
+    env.setdefault('LC_MESSAGES', 'C')
     universal_newlines = kwargs.get('universal_newlines', True)
     capture = kwargs.get('capture', True)
     if capture:
@@ -99,7 +101,8 @@ def _command(cmd, *args, **kwargs):
     p = subprocess.Popen([cmd] + list(args),
                          stdout=stdout,
                          stderr=stderr,
-                         universal_newlines=universal_newlines)
+                         universal_newlines=universal_newlines,
+                         env=env)
     output, err = p.communicate()
     return output, err, p.returncode
 
