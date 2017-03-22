@@ -1,4 +1,4 @@
-Svn external (with --vcs and --no-gitsvn):
+Svn external freeze (with --vcs and --no-gitsvn):
 
   $ git init .
   Initialized empty Git repository in /tmp/cramtests-*/svn-target-freeze-svn.t/.git/ (glob)

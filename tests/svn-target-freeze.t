@@ -1,4 +1,4 @@
-Svn external (with --vcs):
+Svn external freeze (with --vcs):
 
   $ git init .
   Initialized empty Git repository in /tmp/cramtests-*/svn-target-freeze.t/.git/ (glob)
@@ -8,7 +8,7 @@ Svn external (with --vcs):
   Ref:    svn:r10
     ./ -> ./test-repo-svn
   
-  $ git externals update 2>&1 | grep -v "svn:mergeinfo"
+  $ git externals update 2>&1 | grep -v "svn:mergeinfo"  # normalize git svn output
   externals sanity check passed!
   External trunk
   Cloning external trunk
