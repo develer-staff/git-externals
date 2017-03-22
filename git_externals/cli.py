@@ -4,6 +4,7 @@ from __future__ import print_function, unicode_literals
 
 import os
 import sys
+import re
 
 import click
 
@@ -12,7 +13,8 @@ if __package__ is None:
     from utils import command, CommandError, chdir, git, ProgError
 else:
     from . import __version__
-    from .utils import command, CommandError, chdir, git, ProgError, decode_utf8
+    from .utils import (command, CommandError, chdir, git, ProgError, decode_utf8,
+                        current_branch)
 
 click.disable_unicode_literals_warning = True
 
@@ -227,6 +229,42 @@ def gitext_add(external, src, dst, branch, tag, ref):
             git_externals[external]['targets'][src].append(dst)
 
     print_gitext_info(external, git_externals[external], root_dir='.')
+    dump_gitexts(git_externals)
+
+
+@cli.command('freeze')
+@click.argument('externals', nargs=-1, metavar='NAME')
+def gitext_freeze(externals):
+    """Freeze the externals revision"""
+    from git_externals import load_gitexts, dump_gitexts, foreach_externals_dir, root_path
+    git_externals = load_gitexts()
+    re_from_git_svn_id = re.compile("git-svn-id:.*@(\d+)")
+
+    def get_version(rel_url, ext_path, refs):
+        if 'tag' in refs:
+            return
+
+        revision = command('svnversion', '-c').strip()
+        if "Unversioned" in revision:
+            revision = None
+        else:
+            revision = "svn:r" + revision.split(':')[-1]  # 565:56555 -> svn:r56555
+
+        if revision is None:
+            message = git("log", "--grep", "git-svn-id:", "-1")
+            match = re_from_git_svn_id.search(message)
+            if match:
+                revision = "svn:r" + match.group(1)
+            else:
+                branch_name = current_branch()
+                remote_name = git("config", "branch.%s.remote" % branch_name)
+                revision = git("log", "%s/%s" % (remote_name, branch_name), "-1", "--format=%H")
+            info("Freeze {0} at {1}".format(rel_url, revision))
+
+        git_externals[rel_url]["ref"] = revision
+
+    foreach_externals_dir(root_path(), get_version, only=externals)
+
     dump_gitexts(git_externals)
 
 
