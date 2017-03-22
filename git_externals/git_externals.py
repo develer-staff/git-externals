@@ -317,7 +317,10 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
 
     def gitsvn_initial_checkout(repo_name, repo_url):
         """Perform the initial git-svn clone (or sparse checkout)"""
-        gitsvn('clone', normalized_ext_repo, repo_name, '-rHEAD', capture=False)
+        import re
+        m = re.match(r'(?:svn:)?(?:r)?(\d+)', git_externals[ext_repo]['ref'])
+        rev = m.groups()[0] if m is not None else 'HEAD'
+        gitsvn('clone', normalized_ext_repo, repo_name, '-r'+rev, capture=False)
 
     def gitsvn_update_checkout(reset):
         """Update an already existing git-svn working tree"""
