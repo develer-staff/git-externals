@@ -180,7 +180,9 @@ def gitext_ls():
 @click.option('--branch', '-b', default=None, help='Checkout the given branch')
 @click.option('--tag', '-t', default=None, help='Checkout the given tag')
 @click.option('--ref', '-r', default=None, help='Checkout the given commit sha')
-def gitext_add(external, src, dst, branch, tag, ref):
+@click.option('--vcs', '-c', default='auto', help='Version Control System (default: autodetect)',
+              type=click.Choice(['svn', 'git', 'auto']))
+def gitext_add(external, src, dst, branch, tag, ref, vcs):
     """Add a git external to the current repo.
 
     Be sure to add '/' to `src` if it's a directory!
@@ -192,7 +194,7 @@ def gitext_add(external, src, dst, branch, tag, ref):
 
     It requires one of --branch or --tag.
     """
-    from git_externals import load_gitexts, dump_gitexts, print_gitext_info
+    from git_externals import load_gitexts, dump_gitexts, normalize_gitexts, print_gitext_info
 
     git_externals = load_gitexts()
 
@@ -206,6 +208,10 @@ def gitext_add(external, src, dst, branch, tag, ref):
             git_externals[external]['ref'] = ref
         else:
             git_externals[external]['tag'] = tag
+        if vcs == 'auto':
+            git_externals.update(normalize_gitexts({external: git_externals[external]}))
+        else:
+            git_externals[external]['vcs'] = vcs
 
     else:
         if branch is not None:

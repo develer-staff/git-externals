@@ -103,11 +103,16 @@ def load_gitexts(pwd=None):
     if os.path.exists(fn):
         with open(fn) as f:
             gitext = json.load(f)
-            for url, _ in gitext.items():
-                # svn external url must be absolute
-                gitext[url]['vcs'] = 'svn' if 'svn' in urlparse(url).scheme else 'git'
+            gitext = normalize_gitexts(gitext)
             return gitext
     return {}
+
+
+def normalize_gitexts(gitext):
+    for url, _ in gitext.items():
+        # svn external url must be absolute and svn+ssh to be autodetected
+        gitext[url].setdefault('vcs', 'svn' if 'svn' in urlparse(url).scheme else 'git')
+    return gitext
 
 
 def dump_gitexts(externals):
@@ -116,12 +121,7 @@ def dump_gitexts(externals):
     git_externals.json. Remove 'vcs' key that is only used at runtime.
     """
     with open(externals_json_path(), 'w') as f:
-        # copy the externals dict (we want to keep the 'vcs')
-        dump = {k: v for k,v in externals.items()}
-        for v in dump.values():
-            if 'vcs' in v:
-                del v['vcs']
-        json.dump(dump, f, sort_keys=True, indent=4, separators=(',', ': '))
+        json.dump(externals, f, sort_keys=True, indent=4, separators=(',', ': '))
 
 
 def foreach_externals(pwd, callback, recursive=True, only=()):
