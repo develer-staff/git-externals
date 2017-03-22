@@ -102,9 +102,7 @@ def load_gitexts(pwd=None):
     fn = os.path.join(d, EXTERNALS_JSON)
     if os.path.exists(fn):
         with open(fn) as f:
-            gitext = json.load(f)
-            gitext = normalize_gitexts(gitext)
-            return gitext
+            return normalize_gitexts(json.load(f))
     return {}
 
 
