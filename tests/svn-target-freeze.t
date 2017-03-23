@@ -43,7 +43,7 @@ Svn external freeze (with --vcs):
 Test version bump:
 
   $ (cd test-repo-svn && svnversion -c)
-  Unversioned directory
+  (Unversioned directory|exported) (re)
 
   $ (cd test-repo-svn && git checkout master)
   Previous HEAD position was e05cc85... Add citation

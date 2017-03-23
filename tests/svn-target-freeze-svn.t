@@ -27,12 +27,7 @@ Test version bump:
   $ (cd test-repo-svn && svnversion -c)
   5:10
 
-  $ (cd test-repo-svn && svn update -rHEAD)
-  Updating '.':
-  A    docs
-  A    docs/docs.md
-  U    README.md
-   U   .
+  $ (cd test-repo-svn && svn update -rHEAD | grep revision)
   Updated to revision 15.
 
   $ (cd test-repo-svn && svnversion -c)
