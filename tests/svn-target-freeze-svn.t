@@ -15,9 +15,23 @@ Svn external freeze (with --vcs and --no-gitsvn):
   Retrieving changes from server:  trunk
   Updating to commit 10
 
-  $ cd test-repo-svn && svn log --limit 1
+  $ (cd test-repo-svn && svn log --limit 1)
   ------------------------------------------------------------------------
   r10 | naufraghi | 2017-02-02 23:06:36 +0000 (Thu, 02 Feb 2017) | 1 line
   
   Add citation
   ------------------------------------------------------------------------
+
+Test version bump:
+
+  $ (cd test-repo-svn && svnversion -c)
+  5:10
+
+  $ (cd test-repo-svn && svn update -rHEAD | grep revision)
+  Updated to revision 15.
+
+  $ (cd test-repo-svn && svnversion -c)
+  5:15
+
+  $ git externals freeze
+  Freeze https://svn.riouxsvn.com/svn-test-repo/trunk at svn:r15
