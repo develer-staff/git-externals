@@ -31,7 +31,7 @@ Svn external freeze (with --vcs):
   Fast-forwarded master to refs/remotes/git-svn.
   Checking out commit e05cc85567e5e18004ba1fc55ed7599ba94d2b5a
 
-  $ cd test-repo-svn && git log -1
+  $ (cd test-repo-svn && git log -1)
   commit e05cc85567e5e18004ba1fc55ed7599ba94d2b5a
   Author: naufraghi <naufraghi@fa4e49d6-2000-40a9-909b-e7fe548600ae>
   Date:   Thu Feb 2 23:06:36 2017 +0000
@@ -39,3 +39,15 @@ Svn external freeze (with --vcs):
       Add citation
       
       git-svn-id: https://svn.riouxsvn.com/svn-test-repo/trunk@10 fa4e49d6-2000-40a9-909b-e7fe548600ae
+
+Test version bump:
+
+  $ (cd test-repo-svn && svnversion -c)
+  Unversioned directory
+
+  $ (cd test-repo-svn && git checkout master)
+  Previous HEAD position was e05cc85... Add citation
+  Switched to branch 'master'
+
+  $ git externals freeze
+  Freeze https://svn.riouxsvn.com/svn-test-repo/trunk at svn:r15

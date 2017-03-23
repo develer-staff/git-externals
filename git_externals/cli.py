@@ -245,6 +245,7 @@ def gitext_freeze(externals):
     from git_externals import load_gitexts, dump_gitexts, foreach_externals_dir, root_path
     git_externals = load_gitexts()
     re_from_git_svn_id = re.compile("git-svn-id:.*@(\d+)")
+    re_from_svnversion = re.compile("(\d+):(\d+)")
 
     def get_version(rel_url, ext_path, refs):
         if 'tag' in refs:
@@ -252,19 +253,20 @@ def gitext_freeze(externals):
 
         if git_externals[rel_url]["vcs"] == "svn":
             revision = command('svnversion', '-c').strip()
-            if "Unversioned" in revision:
-                revision = None
-            else:
-                revision = "svn:r" + revision.split(':')[-1]  # 565:56555 -> svn:r56555
-        else:
-            message = git("log", "--grep", "git-svn-id:", "-1")
-            match = re_from_git_svn_id.search(message)
+            match = re_from_svnversion.search(revision)
             if match:
-                revision = "svn:r" + match.group(1)
+                revision = "svn:r" + match.group(2)  # 565:56555 -> svn:r56555
             else:
-                branch_name = current_branch()
-                remote_name = git("config", "branch.%s.remote" % branch_name)
-                revision = git("log", "%s/%s" % (remote_name, branch_name), "-1", "--format=%H")
+                message = git("log", "--grep", "git-svn-id:", "-1")
+                match = re_from_git_svn_id.search(message)
+                if match:
+                    revision = "svn:r" + match.group(1)
+                else:
+                    error("Unsupported external format, should be svn or git-svn repo")
+        else:
+            branch_name = current_branch()
+            remote_name = git("config", "branch.%s.remote" % branch_name)
+            revision = git("log", "%s/%s" % (remote_name, branch_name), "-1", "--format=%H")
 
         info("Freeze {0} at {1}".format(rel_url, revision))
         git_externals[rel_url]["ref"] = revision
