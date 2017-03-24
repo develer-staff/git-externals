@@ -257,7 +257,7 @@ def gitext_freeze(externals):
             if match:
                 revision = "svn:r" + match.group(2)  # 565:56555 -> svn:r56555
             else:
-                message = git("log", "--grep", "git-svn-id:", "-1")
+                message = git("log", "--pretty=medium", "--grep", "git-svn-id:", "-1")
                 match = re_from_git_svn_id.search(message)
                 if match:
                     revision = "svn:r" + match.group(1)
