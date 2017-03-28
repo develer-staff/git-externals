@@ -396,13 +396,9 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
                 gitext_up(recursive, entries, reset=reset, use_gitsvn=use_gitsvn)
 
 
-def gitext_recursive_info(root_dir):
-    git_exts = load_gitexts()
-    git_exts = {ext_repo: ext for ext_repo, ext in git_exts.items()
+def gitext_recursive_info(root_dir, recursive=True, externals=[]):
+    git_exts = {ext_repo: ext for ext_repo, ext in load_gitexts().items()
                 if os.path.exists(os.path.join(externals_root_path(), get_repo_name(ext_repo)))}
-
-    for ext_repo, ext in git_exts.items():
-        print_gitext_info(ext_repo, ext, root_dir=root_dir)
 
     for ext_repo, ext in git_exts.items():
         entries = [os.path.realpath(d)
@@ -410,25 +406,32 @@ def gitext_recursive_info(root_dir):
                    for d in t]
 
         cwd = os.getcwd()
+        repo_name = get_repo_name(ext_repo)
+        if externals and repo_name not in externals:
+            continue
 
-        with chdir(os.path.join(externals_root_path(), get_repo_name(ext_repo))):
+        with chdir(os.path.join(externals_root_path(), repo_name)):
             filtered = filter_externals_not_needed(load_gitexts(), entries)
+            print_gitext_info(ext_repo, ext, root_dir, os.getcwd())
 
-            for dsts in ext['targets'].values():
-                for dst in dsts:
-                    real_dst = os.path.realpath(os.path.join(cwd, dst))
+            # if required, recurse into the externals repo of current external
+            if recursive:
+                for dsts in ext['targets'].values():
+                    for dst in dsts:
+                        real_dst = os.path.realpath(os.path.join(cwd, dst))
 
-                    has_deps = any([os.path.realpath(d).startswith(real_dst)
-                                    for e in filtered.values()
-                                    for ds in e['targets'].values()
-                                    for d in ds])
+                        has_deps = any([os.path.realpath(d).startswith(real_dst)
+                                        for e in filtered.values()
+                                        for ds in e['targets'].values()
+                                        for d in ds])
 
-                    if has_deps:
-                        gitext_recursive_info(os.path.join(root_dir, dst))
+                        if has_deps:
+                            gitext_recursive_info(os.path.join(root_dir, dst))
 
 
-def print_gitext_info(ext_repo, ext, root_dir):
+def print_gitext_info(ext_repo, ext, root_dir, checkout):
     click.secho('Repo:   {}'.format(ext_repo), fg='blue')
+    click.echo('Checkout:    {}'.format(checkout))
 
     if 'tag' in ext:
         click.echo('Tag:    {}'.format(ext['tag']))

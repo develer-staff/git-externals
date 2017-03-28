@@ -294,25 +294,11 @@ def gitext_remove(external):
 @cli.command('info')
 @click.argument('externals', nargs=-1)
 @click.option('--recursive/--no-recursive', default=True,
-              help='Print info only for top level externals')
+              help='Top level externals in which recurse into')
 def gitext_info(externals, recursive):
     """Print some info about the externals."""
-    from git_externals import print_gitext_info, get_repo_name, gitext_recursive_info, load_gitexts
-
-    if recursive:
-        gitext_recursive_info('.')
-        return
-
-    externals = set(externals)
-    git_externals = load_gitexts()
-
-    filtered = [(ext_repo, ext)
-                for (ext_repo, ext) in git_externals.items()
-                if get_repo_name(ext_repo) in externals]
-    filtered = filtered or git_externals.items()
-
-    for ext_repo, ext in filtered:
-        print_gitext_info(ext_repo, ext, root_dir='.')
+    from git_externals import gitext_recursive_info
+    gitext_recursive_info('.', recursive=recursive, externals=externals)
 
 
 def enable_colored_output():
