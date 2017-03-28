@@ -292,10 +292,10 @@ def gitext_remove(external):
 
 
 @cli.command('info')
-@click.argument('external', nargs=-1)
+@click.argument('externals', nargs=-1)
 @click.option('--recursive/--no-recursive', default=True,
               help='Print info only for top level externals')
-def gitext_info(external, recursive):
+def gitext_info(externals, recursive):
     """Print some info about the externals."""
     from git_externals import print_gitext_info, get_repo_name, gitext_recursive_info, load_gitexts
 
@@ -303,12 +303,12 @@ def gitext_info(external, recursive):
         gitext_recursive_info('.')
         return
 
-    external = set(external)
+    externals = set(externals)
     git_externals = load_gitexts()
 
     filtered = [(ext_repo, ext)
                 for (ext_repo, ext) in git_externals.items()
-                if get_repo_name(ext_repo) in external]
+                if get_repo_name(ext_repo) in externals]
     filtered = filtered or git_externals.items()
 
     for ext_repo, ext in filtered:
