@@ -51,3 +51,10 @@ Test version bump:
 
   $ git externals freeze
   Freeze https://svn.riouxsvn.com/svn-test-repo/trunk at svn:r15
+
+Test freeze ignores the current pretty.format git config:
+
+  $ git config --local pretty.format '%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset'
+
+  $ git externals freeze
+  Freeze https://svn.riouxsvn.com/svn-test-repo/trunk at svn:r15
