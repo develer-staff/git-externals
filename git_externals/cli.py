@@ -164,14 +164,6 @@ def gitext_diff(external):
         click.echo(git('diff'))
 
 
-@cli.command('list')
-def gitext_ls():
-    """Print just a list of all externals used"""
-    from git_externals import iter_externals
-    for entry in iter_externals([], verbose=False):
-        info(entry)
-
-
 @cli.command('add')
 @click.argument('external',
                 metavar='URL')
