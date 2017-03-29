@@ -412,7 +412,7 @@ def gitext_recursive_info(root_dir, recursive=True, externals=[]):
 
         with chdir(os.path.join(externals_root_path(), repo_name)):
             filtered = filter_externals_not_needed(load_gitexts(), entries)
-            print_gitext_info(ext_repo, ext, root_dir, os.getcwd())
+            print_gitext_info(ext_repo, ext, root_dir, checkout=os.getcwd())
 
             # if required, recurse into the externals repo of current external
             if recursive:
@@ -429,9 +429,10 @@ def gitext_recursive_info(root_dir, recursive=True, externals=[]):
                             gitext_recursive_info(os.path.join(root_dir, dst))
 
 
-def print_gitext_info(ext_repo, ext, root_dir, checkout):
+def print_gitext_info(ext_repo, ext, root_dir, checkout=None):
     click.secho('Repo:   {}'.format(ext_repo), fg='blue')
-    click.echo('Checkout:    {}'.format(checkout))
+    if checkout is not None:
+        click.echo('Checkout:    {}'.format(checkout))
 
     if 'tag' in ext:
         click.echo('Tag:    {}'.format(ext['tag']))
