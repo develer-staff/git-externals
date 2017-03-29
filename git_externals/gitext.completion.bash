@@ -23,7 +23,7 @@ add \
 diff \
 foreach \
 info \
-list \
+freeze \
 remove \
 status \
 update
@@ -31,7 +31,7 @@ update
 
 _git_externals ()
 {
-  local subcommands="add diff foreach info list remove status update"
+  local subcommands="$(echo $_git_ext_cmds)"
   local subcommand="$(__git_find_on_cmdline "$subcommands")"
 
   if [ -z "$subcommand" ]; then
@@ -56,20 +56,12 @@ _git_externals ()
     __git_ext_update_foreach
     return
     ;;
-  list)
-    __git_ext_list
-    return
-    ;;
   remove)
     __git_ext_remove
     return
     ;;
   status)
     __git_ext_status
-    return
-    ;;
-  list)
-    __git_ext_list
     return
     ;;
   *)

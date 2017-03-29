@@ -164,14 +164,6 @@ def gitext_diff(external):
         click.echo(git('diff'))
 
 
-@cli.command('list')
-def gitext_ls():
-    """Print just a list of all externals used"""
-    from git_externals import iter_externals
-    for entry in iter_externals([], verbose=False):
-        info(entry)
-
-
 @cli.command('add')
 @click.argument('external',
                 metavar='URL')
@@ -292,27 +284,13 @@ def gitext_remove(external):
 
 
 @cli.command('info')
-@click.argument('external', nargs=-1)
+@click.argument('externals', nargs=-1)
 @click.option('--recursive/--no-recursive', default=True,
-              help='Print info only for top level externals')
-def gitext_info(external, recursive):
+              help='Top level externals in which recurse into')
+def gitext_info(externals, recursive):
     """Print some info about the externals."""
-    from git_externals import print_gitext_info, get_repo_name, gitext_recursive_info, load_gitexts
-
-    if recursive:
-        gitext_recursive_info('.')
-        return
-
-    external = set(external)
-    git_externals = load_gitexts()
-
-    filtered = [(ext_repo, ext)
-                for (ext_repo, ext) in git_externals.items()
-                if get_repo_name(ext_repo) in external]
-    filtered = filtered or git_externals.items()
-
-    for ext_repo, ext in filtered:
-        print_gitext_info(ext_repo, ext, root_dir='.')
+    from git_externals import gitext_recursive_info
+    gitext_recursive_info('.', recursive=recursive, externals=externals)
 
 
 def enable_colored_output():
