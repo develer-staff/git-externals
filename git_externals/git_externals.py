@@ -429,9 +429,14 @@ def gitext_recursive_info(root_dir, recursive=True, externals=[]):
                             gitext_recursive_info(os.path.join(root_dir, dst))
 
 
-def print_gitext_info(ext_repo, ext, root_dir, checkout=None):
+def print_gitext_info(ext_repo, ext, root_dir, checkout=False):
+    """
+    print information for all externals, recursively or not.
+    `checkout` controls if printing the `Checkout` field (i.e real checkout
+    directory) is required or not.
+    """
     click.secho('Repo:   {}'.format(ext_repo), fg='blue')
-    if checkout is not None:
+    if checkout:
         click.echo('Checkout:    {}'.format(checkout))
 
     if 'tag' in ext:
