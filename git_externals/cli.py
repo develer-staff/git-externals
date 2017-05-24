@@ -237,6 +237,7 @@ def gitext_freeze(externals, messages):
     """Freeze the externals revision"""
     from git_externals import load_gitexts, dump_gitexts, foreach_externals_dir, root_path, resolve_revision
     git_externals = load_gitexts()
+    repo_root = root_path()
     re_from_git_svn_id = re.compile("git-svn-id:.*@(\d+)")
     re_from_svnversion = re.compile("(\d+):(\d+)")
 
@@ -255,7 +256,8 @@ def gitext_freeze(externals, messages):
                 if match:
                     revision = "svn:r" + match.group(1)
                 else:
-                    error("Unsupported external format, should be svn or git-svn repo")
+                    here = os.path.relpath(os.getcwd(), repo_root)
+                    error("Unsupported external format, svn or git-svn repo expected:\n\t{}".format(here))
         else:
             branch_name = current_branch()
             remote_name = git("config", "branch.%s.remote" % branch_name)
@@ -268,7 +270,7 @@ def gitext_freeze(externals, messages):
             git("svn", "log", "--oneline", "{}..{}".format(old, new), capture=False)
         git_externals[rel_url]["ref"] = revision
 
-    foreach_externals_dir(root_path(), get_version, only=externals)
+    foreach_externals_dir(repo_root, get_version, only=externals)
 
     dump_gitexts(git_externals)
 
