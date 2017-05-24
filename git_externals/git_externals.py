@@ -120,6 +120,7 @@ def dump_gitexts(externals):
     """
     with open(externals_json_path(), 'w') as f:
         json.dump(externals, f, sort_keys=True, indent=4, separators=(',', ': '))
+        f.write("\n")
 
 
 def foreach_externals(pwd, callback, recursive=True, only=()):
