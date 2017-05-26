@@ -29,7 +29,7 @@ Test version bump:
   5:10
 
   $ (cd test-repo-svn && svn update -rHEAD | grep revision)
-  Updated to revision 15.
+  Updated to revision 16.
 
   $ (cd test-repo-svn && svnversion -c)
   5:15
