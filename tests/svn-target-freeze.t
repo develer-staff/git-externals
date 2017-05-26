@@ -12,6 +12,7 @@ Svn external freeze (with --vcs):
   externals sanity check passed!
   External trunk
   Cloning external trunk
+  Resolving svn:r10
   Initialized empty Git repository in /tmp/cramtests-*/svn-target-freeze.t/.git*externals/trunk/.git/ (glob)
   \tA\t*.* (esc) (glob)
   \tA\t*.* (esc) (glob)
@@ -29,6 +30,7 @@ Svn external freeze (with --vcs):
   r15 = fbe3da492ad7013e779968d7d7183cce742e501a (refs/remotes/git-svn)
   First, rewinding head to replay your work on top of it...
   Fast-forwarded master to refs/remotes/git-svn.
+  Resolving svn:r10
   Checking out commit e05cc85567e5e18004ba1fc55ed7599ba94d2b5a
 
   $ (cd test-repo-svn && git log -1)

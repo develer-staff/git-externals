@@ -13,6 +13,7 @@ Svn external freeze (with --vcs and --no-gitsvn):
   External trunk
   Cloning external trunk
   Retrieving changes from server:  trunk
+  Resolving svn:r10
   Updating to commit 10
 
   $ (cd test-repo-svn && svn log --limit 1)
