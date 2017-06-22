@@ -4,6 +4,8 @@ Svn external in a git worktree:
   $ cd master
   $ git init .
   Initialized empty Git repository in /tmp/cramtests-*/git-worktree.t/master/.git/ (glob)
+  $ git config user.email "externals@test.com"
+  $ git config user.name "Git Externals"
   $ git externals add -b trunk -c svn https://svn.riouxsvn.com/svn-test-repo/trunk ./ test-repo-svn > /dev/null 2>&1
   $ git externals update > /dev/null 2>&1
   $ ls . | grep test-repo-svn
