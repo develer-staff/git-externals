@@ -120,6 +120,7 @@ def dump_gitexts(externals):
     """
     with open(externals_json_path(), 'w') as f:
         json.dump(externals, f, sort_keys=True, indent=4, separators=(',', ': '))
+        f.write("\n")
 
 
 def foreach_externals(pwd, callback, recursive=True, only=()):
@@ -268,6 +269,17 @@ def filter_externals_not_needed(all_externals, entries):
 
     return git_externals
 
+def resolve_revision(ref, mode='git'):
+    assert mode in ('git', 'svn'), "mode = {} not in (git, svn)".format(mode)
+    if ref is not None:
+        if ref.startswith('svn:r'):
+            echo("Resolving {}".format(ref))
+            ref = ref.strip('svn:r')
+            # If the revision starts with 'svn:r' in 'git' mode we search
+            # for the matching hash.
+            if mode == 'git':
+                ref = git('log', '--grep', 'git-svn-id:.*@%s' % ref, '--format=%H', capture=True).strip()
+    return ref
 
 def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
 
@@ -311,16 +323,8 @@ def gitext_up(recursive, entries=None, reset=False, use_gitsvn=False):
                 egit('checkout', rev)
 
     def get_rev(ext_repo, mode='git'):
-        assert mode in ('git', 'svn'), "mode = {} not in (git, svn)".format(mode)
         ref = git_externals[ext_repo]['ref']
-        if ref is not None:
-            if ref.startswith('svn:r'):
-                ref = ref.strip('svn:r')
-                # If the revision starts with 'svn:r' in 'git' mode we search
-                # for the matching hash.
-                if mode == 'git':
-                    ref = git('log', '--grep', 'git-svn-id:.*@%s' % ref, '--format=%H', capture=True).strip()
-        return ref
+        return resolve_revision(ref, mode)
 
     def gitsvn_initial_checkout(repo_name, repo_url):
         """Perform the initial git-svn clone (or sparse checkout)"""

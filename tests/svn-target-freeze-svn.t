@@ -13,6 +13,7 @@ Svn external freeze (with --vcs and --no-gitsvn):
   External trunk
   Cloning external trunk
   Retrieving changes from server:  trunk
+  Resolving svn:r10
   Updating to commit 10
 
   $ (cd test-repo-svn && svn log --limit 1)
@@ -28,7 +29,7 @@ Test version bump:
   5:10
 
   $ (cd test-repo-svn && svn update -rHEAD | grep revision)
-  Updated to revision 15.
+  Updated to revision 16.
 
   $ (cd test-repo-svn && svnversion -c)
   5:15
