@@ -130,7 +130,7 @@ def gitext_update(recursive, gitsvn, reset):
 @click.option(
     '--porcelain',
     is_flag=True,
-    help='Print output using the porcelain format, useful mostly for scripts')
+    help='Give the output in an easy-to-parse format for scripts.')
 @click.option(
     '--verbose/--no-verbose',
     is_flag=True,
