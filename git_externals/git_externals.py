@@ -244,7 +244,7 @@ def externals_sanity_check():
     if errmsg is not None:
         errmsg.append("Please correct the corresponding {0} before proceeding".format(EXTERNALS_JSON))
         error('\n'.join(errmsg), exitcode=1)
-    info('externals sanity check passed!')
+    info('externals sanity check passed!', err=True)
 
     # TODO: check if  we don't have duplicate entries under .git/externals
 
