@@ -22,6 +22,7 @@ _git_ext_cmds=" \
 add \
 diff \
 foreach \
+ls-files \
 info \
 freeze \
 remove \
@@ -113,10 +114,24 @@ __git_ext_diff ()
   __gitext_complete_externals "${cur}"
 }
 
-__git_ext_update_foreach ()
+__git_ext_update ()
 {
   local opts=""
   opts="--recursive --no-recursive --gitsvn --no-gitsvn --reset"
+  COMPREPLY=( ${COMPREPLY[@]:-} $(compgen -W "${opts}" -- "${cur}") )
+}
+
+__git_ext_foreach ()
+{
+  local opts=""
+  opts="--recursive --no-recursive --porcelain --no-porcelain"
+  COMPREPLY=( ${COMPREPLY[@]:-} $(compgen -W "${opts}" -- "${cur}") )
+}
+
+__git_ext_ls ()
+{
+  local opts=""
+  opts="--recursive --no-recursive --porcelain --no-porcelain"
   COMPREPLY=( ${COMPREPLY[@]:-} $(compgen -W "${opts}" -- "${cur}") )
 }
 
@@ -162,10 +177,14 @@ __git_externals ()
         __git_ext_info ;;
       status)
         __git_ext_status ;;
-      update|foreach)
-        __git_ext_update_foreach ;;
+      update)
+        __git_ext_update ;;
+      foreach)
+        __git_ext_foreach ;;
+      ls-files)
+        __git_ext_ls ;;
       add)
-        __git_ext_update_add ;;
+        __git_ext_add ;;
       esac # case ${cmd}
   fi # command specified
 
