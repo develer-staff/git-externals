@@ -100,6 +100,43 @@ def gitext_foreach(recursive, porcelain, subcommand):
     foreach_externals_dir(root_path(), run_command, recursive=recursive)
 
 
+@cli.command('ls-files')
+@click.option('--recursive/--no-recursive', help='If --recursive is specified, this command will recurse into nested externals', default=True)
+def gitext_ls_files(recursive):
+    """List the files in the externals working-tree.
+    """
+	#TODO: implement a way to show the working tree for a subset of externals, ex `git externals ls-files extA extB`
+    from git_externals import externals_sanity_check, get_repo_name, foreach_externals_dir, root_path
+
+    externals_sanity_check()
+
+    def list_git():
+        return decode_utf8(git('ls-files', '--recurse-submodules'))
+
+    def list_svn():
+        #TODO: implement for windows platform
+
+        # we prefer `find .` to `svn list -R` because `svn-list -R` get its
+        # list for the repository (i.e network access)
+        return decode_utf8(command('find', '.'))
+
+    def show_tree(rel_url, ext_path, targets):
+        try:
+            info("External {}".format(get_repo_name(rel_url)), err=True)
+            if os.path.exists('.git'):
+                files = list_git()
+            else:
+                files = list_svn()
+            echo('\n'.join(
+                [os.path.normpath(os.path.join(ext_path, f))
+                    for f in files.splitlines()]))
+        except CommandError as err:
+            info("Command error {} CWD: {}".format(err, os.getcwd()), err=True)
+            error(str(err), exitcode=err.errcode)
+
+    foreach_externals_dir(root_path(), show_tree, recursive=recursive)
+
+
 @cli.command('update')
 @click.option('--recursive/--no-recursive', help='Do not call git-externals update recursively', default=True)
 @click.option('--gitsvn/--no-gitsvn', help='use git-svn (or simply svn) to checkout SVN repositories (only needed at first checkout)', default=True)
