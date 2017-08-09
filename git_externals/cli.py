@@ -73,8 +73,12 @@ def cli(ctx, with_color):
 
 @cli.command('foreach')
 @click.option('--recursive/--no-recursive', help='If --recursive is specified, this command will recurse into nested externals', default=True)
+@click.option(
+    '--porcelain',
+    is_flag=True,
+    help='Give the output in an easy-to-parse format for scripts.')
 @click.argument('subcommand', nargs=-1, required=True)
-def gitext_foreach(recursive, subcommand):
+def gitext_foreach(recursive, porcelain, subcommand):
     """Evaluates an arbitrary shell command in each checked out external
     """
     from git_externals import externals_sanity_check, get_repo_name, foreach_externals_dir, root_path
@@ -85,6 +89,8 @@ def gitext_foreach(recursive, subcommand):
         try:
             info("External {}".format(get_repo_name(rel_url)), err=True)
             output = decode_utf8(command(*subcommand))
+            if porcelain: 
+                echo("[External={}]".format(os.getcwd()))
             info("Ok: CWD: {}, cmd: {}".format(os.getcwd(), subcommand), err=True)
             echo(output)
         except CommandError as err:
