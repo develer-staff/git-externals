@@ -273,7 +273,7 @@ def resolve_revision(ref, mode='git'):
     assert mode in ('git', 'svn'), "mode = {} not in (git, svn)".format(mode)
     if ref is not None:
         if ref.startswith('svn:r'):
-            echo("Resolving {}".format(ref))
+            # echo("Resolving {}".format(ref))
             ref = ref.strip('svn:r')
             # If the revision starts with 'svn:r' in 'git' mode we search
             # for the matching hash.

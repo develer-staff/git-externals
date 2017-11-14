@@ -245,11 +245,13 @@ def gitext_freeze(externals, messages):
         if 'tag' in refs:
             return
 
+        bare_svn = False
         if git_externals[rel_url]["vcs"] == "svn":
             revision = command('svnversion', '-c').strip()
             match = re_from_svnversion.search(revision)
             if match:
                 revision = "svn:r" + match.group(2)  # 565:56555 -> svn:r56555
+                bare_svn = True
             else:
                 message = git("log", "--format=%b", "--grep", "git-svn-id:", "-1")
                 match = re_from_git_svn_id.search(message)
@@ -264,10 +266,10 @@ def gitext_freeze(externals, messages):
             revision = git("log", "%s/%s" % (remote_name, branch_name), "-1", "--format=%H")
 
         info("Freeze {0} at {1}".format(rel_url, revision))
-        if messages:
+        if messages and not bare_svn:
             old = resolve_revision(git_externals[rel_url]["ref"])
             new = resolve_revision(revision)
-            git("svn", "log", "--oneline", "{}..{}".format(old, new), capture=False)
+            git("log", "--format=- %h %s", "{}..{}".format(old, new), capture=False)
         git_externals[rel_url]["ref"] = revision
 
     foreach_externals_dir(repo_root, get_version, only=externals)
