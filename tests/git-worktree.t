@@ -24,3 +24,26 @@ Now we create a worktree ad try to update the externals there too
   $ git externals update > /dev/null 2>&1
   $ ls . | grep test-repo-svn
   test-repo-svn
+
+Test the upgrade to the new storage folder `.git_externals/`
+
+  $ cd ../master
+  $ readlink -f test-repo-svn
+  /tmp/cramtests-*/git-worktree.t/master/.git_externals/trunk (glob)
+  $ mv .git_externals/ .git/externals
+  $ rm test-repo-svn
+  $ ln -s .git/externals/trunk ./test-repo-svn
+  $ readlink -f test-repo-svn  # check we restored the old version location
+  /tmp/cramtests-*/git-worktree.t/master/.git/externals/trunk (glob)
+
+  $ git externals update
+  Moving old externals path to new location
+  externals sanity check passed!
+  External trunk
+  Retrieving changes from server:  trunk
+  *-*-* *:*:* INFO[git-svn-clone-externals]: git svn rebase . (glob)
+  Current branch HEAD is up to date.
+  Checking out commit git-svn
+
+  $ readlink -f test-repo-svn  # check we updated the link too
+  /tmp/cramtests-*/git-worktree.t/master/.git_externals/trunk (glob)

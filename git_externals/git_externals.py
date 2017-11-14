@@ -58,6 +58,7 @@ def externals_root_path(pwd=None):
     if os.path.exists(_old_root_path) and not os.path.exists(_root_path):
         info("Moving old externals path to new location")
         os.rename(_old_root_path, _root_path)
+        link_entries(load_gitexts(pwd))
     elif os.path.exists(_old_root_path) and os.path.exists(_root_path):
         error("Both new and old externals folder found, {} will be used".format(_root_path))
     return _root_path
