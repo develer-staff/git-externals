@@ -1,11 +1,11 @@
+dist: trusty
 language: python
 python:
   -  "2.7"
 
-addons:
-  apt:
-    packages:
-    - git-svn
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y git-svn
 
 install: pip install tox
 script:
