@@ -254,7 +254,7 @@ def externals_sanity_check():
         error('\n'.join(errmsg), exitcode=1)
     info('externals sanity check passed!')
 
-    # TODO: check if  we don't have duplicate entries under .git/externals
+    # TODO: check if we don't have duplicate entries under `.git_externals/`
 
 
 def filter_externals_not_needed(all_externals, entries):

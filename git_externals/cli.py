@@ -49,7 +49,7 @@ def cli(ctx, with_color):
     replacement to svn externals
 
     This script works by cloning externals found in the `git_externals.json`
-    file into `.git/externals` and symlinks them to recreate the wanted
+    file into `.git_externals/` and symlinks them to recreate the wanted
     directory layout.
     """
     from git_externals import is_git_repo, externals_json_path, externals_root_path

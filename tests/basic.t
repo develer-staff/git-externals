@@ -7,7 +7,7 @@ Usage without options:
     to svn externals
   
     This script works by cloning externals found in the `git_externals.json`
-    file into `.git/externals` and symlinks them to recreate the wanted
+    file into `.git_externals/` and symlinks them to recreate the wanted
     directory layout.
   
   Options:
