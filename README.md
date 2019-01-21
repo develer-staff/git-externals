@@ -1,5 +1,10 @@
 [![Build Status](https://travis-ci.org/develersrl/git-externals.svg?branch=master)](https://travis-ci.org/develersrl/git-externals)
 
+Frozen mode
+-----------
+
+:thinking: This project _works_ but the development is frozen, do not expect a lot submitting issues or PRs. :thinking:
+
 Git Externals
 -------------
 
